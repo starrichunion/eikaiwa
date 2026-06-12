@@ -72,6 +72,10 @@ input[type=text],textarea,select{width:100%;padding:12px;border-radius:10px;bord
 .chip button{background:none;border:none;cursor:pointer;font-size:13px;color:var(--text);padding:0}
 .ai-input-row{display:flex;gap:8px}
 .ai-input-row input{flex:1;margin-bottom:0}
+.tilebox{display:flex;flex-wrap:wrap;gap:8px;min-height:54px;background:var(--panel2);border-radius:12px;padding:10px;margin:8px 0}
+.tilebox.bank{background:transparent;border:1px dashed var(--panel2)}
+.tile{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 13px;font-size:15px;font-weight:700;cursor:pointer}
+.tilebox.bank .tile{background:var(--panel2);border:1px solid var(--accent)}
 #rpScenes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 #rpScenes .btn{white-space:nowrap;padding:13px 4px;font-size:13px}
 nav{scrollbar-width:none}
@@ -174,8 +178,22 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
     <div class="btn-row">
       <button class="btn primary" onclick="startTest('word')">🔤 単語テスト</button>
       <button class="btn primary" onclick="startTest('sentence')">💬 文のテスト</button>
+      <button class="btn primary" onclick="startBuilder()">🧩 並べ替え</button>
     </div>
+    <p class="hint" style="margin-top:8px">🧩並べ替え: お題の日本語に合うように、単語タイルをタップして英文を組み立てます(ダミー単語入り)。間違えるとAIが語順のルールを解説。</p>
     <p class="hint" id="bestScore" style="margin-top:8px"></p>
+  </div>
+  <div class="card hidden" id="bdCard">
+    <div class="hint" id="bdProgress"></div>
+    <div class="prompt-ja" id="bdPrompt" style="font-size:20px"></div>
+    <p class="hint">↓ タイルをタップして英文を作る(タップで戻せます)</p>
+    <div class="tilebox" id="bdAns"></div>
+    <div class="tilebox bank" id="bdBank"></div>
+    <div class="btn-row">
+      <button class="btn primary" onclick="bdCheck()">答え合わせ</button>
+      <button class="btn" onclick="bdEndAll()">やめる</button>
+    </div>
+    <div id="bdFeedback" style="margin-top:12px"></div>
   </div>
   <div class="card hidden" id="testCard">
     <div class="hint" id="testProgress"></div>
@@ -306,7 +324,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
 </section>
 
 </main>
-<footer>英会話エンジン v4.1 — データはこのブラウザ内に保存されます</footer>
+<footer>英会話エンジン v4.2 — データはこのブラウザ内に保存されます</footer>
 
 <script>
 /* ================= 初期デッキ(チャンク=丸ごと使える文) ================= */
@@ -1118,6 +1136,131 @@ function copySetupLink(){
       function(){ toast('✅ リンクをコピーしました。開いた先でブックマーク/ホーム画面追加すれば設定はずっと保持されます。'); },
       function(){ prompt('このリンクをコピーしてください', url); });
   }else{ prompt('このリンクをコピーしてください', url); }
+}
+
+/* ================= 🧩 並べ替え英作文 ================= */
+let bd={qs:[],i:0,score:0,wrong:[],target:[],ans:[],bank:[],card:null,checked:false};
+
+function startBuilder(){
+  let pool=S.cards.filter(function(c){return c.en.trim().split(/\s+/).length>=3;});
+  if(pool.length<3){ alert('並べ替えに使えるカード(3語以上の文)がまだ足りません。カードを増やしましょう!'); return; }
+  pool=shuffleArr(pool.slice()).sort(function(a,b){return (b.total>0?1:0)-(a.total>0?1:0);}).slice(0,10);
+  bd={qs:shuffleArr(pool),i:0,score:0,wrong:[],target:[],ans:[],bank:[],card:null,checked:false};
+  document.getElementById('testSetup').classList.add('hidden');
+  document.getElementById('testCard').classList.add('hidden');
+  document.getElementById('testResult').classList.add('hidden');
+  document.getElementById('bdCard').classList.remove('hidden');
+  bdShowQ();
+}
+
+function bdShowQ(){
+  const c=bd.qs[bd.i]; bd.card=c; bd.checked=false;
+  const words=c.en.trim().split(/\s+/);
+  bd.target=words;
+  // ダミー単語を他カードから2つ
+  const own={}; words.forEach(function(w){own[norm(w)]=1;});
+  const dummies=[];
+  shuffleArr(S.cards.filter(function(x){return x.id!==c.id;}).slice()).some(function(x){
+    x.en.trim().split(/\s+/).some(function(w){
+      const n=norm(w);
+      if(n && !own[n] && !dummies.some(function(d){return norm(d)===n;})) dummies.push(w);
+      return dummies.length>=2;
+    });
+    return dummies.length>=2;
+  });
+  bd.bank=shuffleArr(words.concat(dummies));
+  bd.ans=[];
+  document.getElementById('bdProgress').textContent='🧩 第'+(bd.i+1)+'問 / '+bd.qs.length+'問(正解 '+bd.score+')';
+  document.getElementById('bdPrompt').textContent='お題:「'+c.ja+'」';
+  document.getElementById('bdFeedback').innerHTML='';
+  bdRender();
+}
+
+function bdRender(){
+  const ansBox=document.getElementById('bdAns'), bankBox=document.getElementById('bdBank');
+  ansBox.innerHTML=''; bankBox.innerHTML='';
+  bd.ans.forEach(function(w,i){
+    const t=document.createElement('button'); t.className='tile'; t.textContent=w;
+    t.onclick=function(){ if(bd.checked)return; bd.bank.push(w); bd.ans.splice(i,1); bdRender(); };
+    ansBox.appendChild(t);
+  });
+  bd.bank.forEach(function(w,i){
+    const t=document.createElement('button'); t.className='tile'; t.textContent=w;
+    t.onclick=function(){ if(bd.checked)return; bd.ans.push(w); bd.bank.splice(i,1); bdRender(); speak(w.replace(/[^A-Za-z'\-]/g,''),0.8); };
+    bankBox.appendChild(t);
+  });
+}
+
+function bdCheck(){
+  if(bd.checked) return;
+  if(bd.ans.length!==bd.target.length){
+    toast('この文は全部で'+bd.target.length+'語です(いま'+bd.ans.length+'語)。ダミー単語も混ざっています!');
+    return;
+  }
+  bd.checked=true;
+  const ok=bd.ans.every(function(w,i){return norm(w)===norm(bd.target[i]);});
+  const fb=document.getElementById('bdFeedback');
+  if(ok){
+    bd.score++;
+    fb.innerHTML='<div class="score-big">🎉 正解!</div>';
+    speak(bd.card.en,0.95);
+  }else{
+    bd.wrong.push(bd.card);
+    let div=0; while(div<bd.target.length && norm(bd.ans[div])===norm(bd.target[div])) div++;
+    fb.innerHTML='<div class="score-big">❌ おしい!</div>'
+      +'<p class="hint">'+(div+1)+'語目から違います。正解:</p>'
+      +'<div class="answer-en" style="font-size:18px">'+bd.target.join(' ')+'</div>'
+      +'<p class="hint">あなたの答え: '+bd.ans.join(' ')+'</p>'
+      +'<div class="btn-row"><button class="btn" onclick="bdExplain()">📖 なぜ違う?(AI解説)</button></div>'
+      +'<div id="bdExpBox" class="hidden" style="background:var(--panel2);border-radius:12px;padding:14px;margin-top:10px;font-size:14px;line-height:1.9;white-space:pre-wrap"></div>';
+    speak(bd.card.en,0.95);
+  }
+  const next=document.createElement('div'); next.className='btn-row';
+  next.innerHTML='<button class="btn primary" onclick="bdNext()">'+(bd.i+1<bd.qs.length?'次の問題 →':'結果を見る')+'</button>';
+  fb.appendChild(next);
+}
+
+async function bdExplain(){
+  const box=document.getElementById('bdExpBox');
+  box.classList.remove('hidden');
+  box.textContent='解説を作成中…';
+  try{
+    const p='英語の語順の学習です。初心者の日本人に解説してください。\nお題(意味): '+bd.card.ja
+      +'\n正解の文: '+bd.target.join(' ')
+      +'\n学習者の答え: '+bd.ans.join(' ')
+      +'\nなぜ学習者の並びでは駄目なのか、正しい語順のルール(主語→動詞→…など)を200字以内で優しく解説。記号«»は使わない。';
+    box.textContent=await callAIRaw([{role:'user',content:p}]);
+  }catch(e){
+    box.textContent=(S.claudeKey||S.geminiKey)?'解説を取得できませんでした。もう一度押してください。':'AI解説には「AI先生」タブでのAI設定(無料・2分)が必要です。';
+  }
+}
+
+function bdNext(){
+  bd.i++;
+  if(bd.i<bd.qs.length){ bdShowQ(); return; }
+  // 結果
+  document.getElementById('bdCard').classList.add('hidden');
+  const r=document.getElementById('testResult');
+  const pct=Math.round(100*bd.score/bd.qs.length);
+  let html='<div class="score-big">'+(pct>=80?'🌟':pct>=50?'👍':'💪')+' '+bd.score+' / '+bd.qs.length+'問正解</div>';
+  if(bd.wrong.length){
+    html+='<p class="hint" style="margin:10px 0">間違えた文:</p>';
+    bd.wrong.forEach(function(c){ html+='<div class="deck-item"><div><div>'+c.ja+'</div><div class="en">'+c.en+'</div></div></div>'; });
+    html+='<div class="btn-row"><button class="btn primary" onclick="bdRetryWrong()">間違えた文を今日の練習に入れる</button><button class="btn" onclick="startBuilder()">もう一度</button></div>';
+  }else{
+    html+='<p class="hint" style="text-align:center">全問正解!語順マスターです!</p><div class="btn-row" style="justify-content:center"><button class="btn primary" onclick="startBuilder()">もう一度</button></div>';
+  }
+  r.innerHTML=html; r.classList.remove('hidden');
+  document.getElementById('testSetup').classList.remove('hidden');
+}
+function bdRetryWrong(){
+  bd.wrong.forEach(function(c){ c.due=today(); });
+  save(); buildQueue(); showTab('train'); nextCard();
+  toast('間違えた文を今日の練習に追加しました');
+}
+function bdEndAll(){
+  document.getElementById('bdCard').classList.add('hidden');
+  document.getElementById('testSetup').classList.remove('hidden');
 }
 
 /* ================= 🎭 場面ロールプレイ ================= */
