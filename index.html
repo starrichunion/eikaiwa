@@ -207,7 +207,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
       <div class="btn-row hidden" id="shareKeyRow">
         <button class="btn" onclick="copySetupLink()">📲 設定済みリンクをコピー(スマホ・家族用)</button>
       </div>
-      <p class="hint hidden" id="shareKeyHint" style="margin-top:6px">↑ このリンクをLINE等で送って開くだけで、その端末のAI設定が完了します(信頼できる相手にだけ送ってください)</p>
+      <p class="hint hidden" id="shareKeyHint" style="margin-top:6px">↑ このリンクをLINE等で送って開くだけでAI設定が完了します。<b>開いたページをそのままブックマーク/ホーム画面に追加すれば設定は二度と消えません。</b>LINE内で開いた場合は右下のメニューから「Safari/Chromeで開く」を選ぶと確実です(信頼できる相手にだけ送ってください)</p>
     </div>
   </div>
 </section>
@@ -271,7 +271,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
 </section>
 
 </main>
-<footer>英会話エンジン v3.2 — データはこのブラウザ内に保存されます</footer>
+<footer>英会話エンジン v3.3 — データはこのブラウザ内に保存されます</footer>
 
 <script>
 /* ================= 初期デッキ(チャンク=丸ごと使える文) ================= */
@@ -943,16 +943,19 @@ function copySetupLink(){
   const url=location.origin+location.pathname+'#k='+encodeURIComponent(S.geminiKey);
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(url).then(
-      function(){ toast('✅ リンクをコピーしました。スマホや家族に送って、開くだけでAI設定完了です。'); },
+      function(){ toast('✅ リンクをコピーしました。開いた先でブックマーク/ホーム画面追加すれば設定はずっと保持されます。'); },
       function(){ prompt('このリンクをコピーしてください', url); });
   }else{ prompt('このリンクをコピーしてください', url); }
 }
 
 /* ================= 起動 ================= */
+/* 設定済みリンク(#k=)はURLに残し続ける: ブックマークやホーム画面追加で設定が永続化される */
 if(location.hash && location.hash.indexOf('#k=')===0){
-  S.geminiKey=decodeURIComponent(location.hash.slice(3)); save();
-  try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
-  setTimeout(function(){ toast('✅ AIキーを設定しました。AI先生と文の解説が使えます。'); },600);
+  const nk=decodeURIComponent(location.hash.slice(3));
+  if(nk && S.geminiKey!==nk){
+    S.geminiKey=nk; save();
+    setTimeout(function(){ toast('✅ AIキーを設定しました。このページをそのままブックマーク/ホーム画面に追加すると、設定が消えることはありません。'); },600);
+  }
 }
 buildQueue();
 nextCard();
