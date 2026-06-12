@@ -267,7 +267,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
 </section>
 
 </main>
-<footer>英会話エンジン v3.0 — データはこのブラウザ内に保存されます</footer>
+<footer>英会話エンジン v3.1 — データはこのブラウザ内に保存されます</footer>
 
 <script>
 /* ================= 初期デッキ(チャンク=丸ごと使える文) ================= */
@@ -512,15 +512,30 @@ function recErrMsg(err){
   return m[err]||('🎤 音声認識エラー: '+err);
 }
 
+/* スマホ対応: もう一度タップで確定 / 12秒で自動確定 / 16秒で強制復帰 */
+function startRec(btnId, lang, listeningLabel, idleLabel, onResult){
+  if(!SR){ alert('このブラウザは音声認識に未対応です。文字入力をお使いください。(Android=Chrome推奨)'); return; }
+  if(rec){ try{rec.stop();}catch(e){} return; } // 聞き取り中にもう一度押した=確定
+  rec=new SR(); rec.lang=lang; rec.interimResults=false; rec.maxAlternatives=1;
+  const btn=document.getElementById(btnId);
+  let got=false, t1=null, t2=null;
+  const cleanup=function(){
+    clearTimeout(t1); clearTimeout(t2);
+    btn.classList.remove('listening'); btn.textContent=idleLabel;
+    rec=null;
+  };
+  btn.classList.add('listening'); btn.textContent=listeningLabel;
+  t1=setTimeout(function(){ if(rec){ try{rec.stop();}catch(e){} } },12000);
+  t2=setTimeout(function(){ if(rec){ try{rec.abort();}catch(e){} cleanup(); toast('🎤 応答がないため停止しました。もう一度試すか、文字入力をお使いください。'); } },16000);
+  rec.onresult=function(e){ got=true; const tr=e.results[0][0].transcript; cleanup(); onResult(tr); };
+  rec.onerror=function(e){ got=true; cleanup(); toast(recErrMsg(e.error)); };
+  rec.onend=function(){ if(rec!==null){ cleanup(); } if(!got){ toast('🎤 聞き取れませんでした。マイクに近づいて、もう一度どうぞ。'); } };
+  try{ rec.start(); }catch(e){ cleanup(); toast('🎤 マイクを開始できませんでした: '+e.message); }
+}
+
 function listen(btnId, onResult){
-  if(!SR){ alert('このブラウザは音声認識に未対応です。Chrome / Edge をお使いください。(答えを見る→シャドーイングは音声なしでも練習できます)'); return; }
-  if(rec){ try{rec.stop();}catch(e){} }
-  rec=new SR(); rec.lang='en-US'; rec.interimResults=false; rec.maxAlternatives=1;
-  const btn=document.getElementById(btnId); btn.classList.add('listening'); btn.textContent='🎙️ 聞き取り中…';
-  rec.onresult=function(e){ onResult(e.results[0][0].transcript); };
-  rec.onend=function(){ btn.classList.remove('listening'); btn.textContent=btnId==='micBtn'?'🎤 音声で答える':'🎤 シャドーイング'; rec=null; };
-  rec.onerror=function(e){ btn.classList.remove('listening'); btn.textContent=btnId==='micBtn'?'🎤 音声で答える':'🎤 シャドーイング'; toast(recErrMsg(e.error)); };
-  rec.start();
+  const idle=btnId==='micBtn'?'🎤 音声で答える':'🎤 シャドーイング';
+  startRec(btnId,'en-US','🎙️ 聞き取り中…(もう一度押すと確定)',idle,onResult);
 }
 
 function startListening(){
@@ -881,18 +896,10 @@ function speakBilingual(text){
 
 /* 日本語で話しかける(音声入力→自動送信) */
 function aiListen(){
-  if(!SR){ alert('このブラウザは音声認識に未対応です。Chrome / Edge をお使いください。文字入力は使えます。'); return; }
-  if(rec){ try{rec.stop();}catch(e){} }
-  rec=new SR(); rec.lang='ja-JP'; rec.interimResults=false;
-  const btn=document.getElementById('aiMicBtn');
-  btn.classList.add('listening');
-  rec.onresult=function(e){
-    document.getElementById('aiInput').value=e.results[0][0].transcript;
+  startRec('aiMicBtn','ja-JP','🎙️','🎤',function(tr){
+    document.getElementById('aiInput').value=tr;
     sendToAI();
-  };
-  rec.onend=function(){ btn.classList.remove('listening'); rec=null; };
-  rec.onerror=function(e){ btn.classList.remove('listening'); toast(recErrMsg(e.error)); };
-  rec.start();
+  });
 }
 
 /* 教わったフレーズをワンタップで復習デッキへ */
