@@ -186,6 +186,23 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
 
 <!-- ===== AI先生 ===== -->
 <section id="tab-ai" class="hidden">
+  <div class="card" id="rpCard">
+    <h3 style="margin-bottom:6px">🎭 場面で会話する(ロールプレイ)</h3>
+    <p class="hint" style="margin-bottom:10px">場面を選ぶとAIが英語で話しかけてきます。🎤で英語で返してみましょう。間違えても大丈夫、AIは会話を止めません。4〜6往復でクリア🎉</p>
+    <div class="chips" id="rpScenes"></div>
+    <div class="chat hidden" id="rpChat" style="margin-top:12px"></div>
+    <div class="btn-row hidden" id="rpHelpRow" style="margin-top:4px">
+      <button class="btn" onclick="rpHint()">💡 何て言う?</button>
+      <button class="btn" onclick="rpRescue()">🆘 立て直し</button>
+      <button class="btn" onclick="rpEnd()">終了</button>
+    </div>
+    <div class="ai-input-row hidden" id="rpInputRow" style="margin-top:8px">
+      <button class="btn mic" id="rpMicBtn" onclick="rpListen()">🎤</button>
+      <input type="text" id="rpInput" placeholder="英語で返答(文字でもOK)" onkeydown="if(event.key==='Enter')rpSend()">
+      <button class="btn primary" onclick="rpSend()">送信</button>
+    </div>
+    <p class="hint" id="rpRecord" style="margin-top:8px"></p>
+  </div>
   <div class="card">
     <h3 style="margin-bottom:6px">🧑‍🏫 AI先生に何でも聞く</h3>
     <p class="hint" style="margin-bottom:12px">例:「マックでコーラをLサイズで2個頼むときは何て言えばいいの?」<br>🎤を押して日本語で話しかけるだけ(文字入力もOK)。教わったフレーズは ➕ でそのまま復習デッキに入ります。</p>
@@ -203,7 +220,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
         ③ 下に貼り付けて保存 — 以後ずっと安定した高品質AIで動きます
       </p>
       <div class="ai-input-row">
-        <input type="text" id="gemKey" placeholder="AIzaSy… で始まるキーを貼り付け">
+        <input type="text" id="gemKey" placeholder="AIzaSy…(Gemini) か sk-ant-…(Claude) のキーを貼り付け">
         <button class="btn primary" onclick="saveKey()">保存</button>
       </div>
       <p class="hint" id="keyStatus" style="margin-top:6px"></p>
@@ -217,6 +234,12 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
 
 <!-- ===== 記録 ===== -->
 <section id="tab-stats" class="hidden">
+  <div class="card">
+    <h3 style="margin-bottom:4px">🎯 今週のミッション</h3>
+    <p class="hint" style="margin-bottom:10px">覚えかけの1文を、今週どこかで実際に使ってみましょう。実戦で使えた文は記憶への定着が最も強くなります。</p>
+    <div id="missionBox"></div>
+    <div id="winsBox" style="margin-top:14px"></div>
+  </div>
   <div class="card">
     <h3 style="margin-bottom:4px">📅 今日の学習</h3>
     <p class="hint" style="margin-bottom:10px">今日やったことの見返し。🔊で発音を聞き直せます。</p>
@@ -279,7 +302,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
 </section>
 
 </main>
-<footer>英会話エンジン v3.6 — データはこのブラウザ内に保存されます</footer>
+<footer>英会話エンジン v4.0 — データはこのブラウザ内に保存されます</footer>
 
 <script>
 /* ================= 初期デッキ(チャンク=丸ごと使える文) ================= */
@@ -444,7 +467,7 @@ async function explainCard(){
     current.exp=ans; save();
     box.textContent=ans; box.classList.remove('hidden');
   }catch(e){
-    toast(S.geminiKey
+    toast((S.claudeKey||S.geminiKey)
       ? '解説を取得できませんでした。時間を置いてもう一度お試しください。'
       : 'この端末はAI未設定のため解説が使えません。「AI先生」タブの「⚙️ AIの頭脳を設定」(無料・2分)を行ってください。');
   }
@@ -517,6 +540,13 @@ function toast(msg){
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let lastTranscript=null, rec=null;
 
+function micHelp(){
+  if(/iPhone|iPad/.test(navigator.userAgent)){
+    return 'iPhoneでの直し方:\n1) アドレスバー左の「ぁあ」→「Webサイトの設定」→マイク→「許可」\n2) それでも駄目なら: iPhoneの設定→アプリ→Safari→マイク を許可\n3) ホーム画面のアイコンから開いている場合は、一度Safari本体でこのページを開いて🎤を押し、「許可」を選んでください';
+  }
+  return 'Androidでの直し方:\n1) アドレスバーの🔒(鍵マーク)→「権限」→マイク→「許可」\n2) 出てこない場合: Chromeのメニュー→設定→サイトの設定→マイク→「ブロック中」のリストからこのサイトを削除\n3) 端末の設定→アプリ→Chrome→権限→マイク も「許可」にしてください';
+}
+
 function recErrMsg(err){
   const m={
     'no-speech':'🎤 声が聞き取れませんでした。もう一度押して話してください。',
@@ -544,7 +574,11 @@ function startRec(btnId, lang, listeningLabel, idleLabel, onResult){
   t1=setTimeout(function(){ if(rec){ try{rec.stop();}catch(e){} } },12000);
   t2=setTimeout(function(){ if(rec){ try{rec.abort();}catch(e){} cleanup(); toast('🎤 応答がないため停止しました。もう一度試すか、文字入力をお使いください。'); } },16000);
   rec.onresult=function(e){ got=true; const tr=e.results[0][0].transcript; cleanup(); onResult(tr); };
-  rec.onerror=function(e){ got=true; cleanup(); toast(recErrMsg(e.error)); };
+  rec.onerror=function(e){
+    got=true; cleanup();
+    if(e.error==='not-allowed'){ alert('🎤 マイクの使用がブロックされています。\n\n'+micHelp()); }
+    else toast(recErrMsg(e.error));
+  };
   rec.onend=function(){ if(rec!==null){ cleanup(); } if(!got){ toast('🎤 聞き取れませんでした。マイクに近づいて、もう一度どうぞ。'); } };
   try{ rec.start(); }catch(e){ cleanup(); toast('🎤 マイクを開始できませんでした: '+e.message); }
 }
@@ -629,7 +663,7 @@ function showTab(t){
   });
   if(t==='stats') renderStats();
   if(t==='deck') renderDeck();
-  if(t==='ai') renderChat();
+  if(t==='ai'){ renderChat(); rpRenderScenes(); }
   if(t==='test') document.getElementById('bestScore').textContent=S.bestTest?('ベストスコア: '+S.bestTest+'%'):'';
 }
 
@@ -798,6 +832,7 @@ function renderDailyLog(){
 }
 
 function renderStats(){
+  renderMission();
   renderDailyLog();
   document.getElementById('stTotal').textContent=S.totalReviews;
   document.getElementById('stStreak').textContent=S.streak;
@@ -876,8 +911,8 @@ function renderChat(){
   updateKeyStatus();
 }
 
-function appendMsg(role,text,scroll){
-  const box=document.getElementById('chatBox');
+function appendMsg(role,text,scroll,boxId){
+  const box=document.getElementById(boxId||'chatBox');
   const div=document.createElement('div');
   div.className='msg '+(role==='user'?'user':'ai');
   if(role==='assistant'){
@@ -926,11 +961,28 @@ function fetchWithTimeout(url,opts,ms){
 function buildPromptFrom(messages){
   let lines=messages.slice(-8).map(function(m){return (m.role==='user'?'生徒: ':'先生: ')+m.content;});
   while(lines.join('\n').length>600 && lines.length>1) lines.shift();
-  return SYS_PROMPT+'\n\n--- これまでの会話 ---\n'+lines.join('\n')+'\n先生:';
+  return '--- これまでの会話 ---\n'+lines.join('\n')+'\n先生:';
 }
 
-/* Gemini(キー設定済みなら最優先)→ 無料エンドポイントの順に試す */
-async function callAIRaw(messages){
+/* Claude → Gemini → 無料エンドポイントの順に試す */
+async function callAIRaw(messages, sys){
+  sys=sys||SYS_PROMPT;
+  while(messages.length && messages[0].role!=='user') messages=messages.slice(1); // 先頭はuser必須(API仕様)
+  if(S.claudeKey){
+    try{
+      const r=await fetchWithTimeout('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':S.claudeKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+        body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:700,system:sys,
+          messages:messages.map(function(m){return {role:m.role==='user'?'user':'assistant',content:m.content};})})});
+      if(r.status===401||r.status===403) throw new Error('APIキーが正しくないようです');
+      if(r.ok){
+        const d=await r.json();
+        const t=((d.content&&d.content[0]&&d.content[0].text)||'').trim();
+        if(t) return t;
+      }
+    }catch(e){ if(String(e.message).indexOf('APIキー')>=0) throw e; }
+  }
   if(S.geminiKey){
     const models=['gemini-2.5-flash','gemini-2.0-flash','gemini-flash-latest'];
     for(let i=0;i<models.length;i++){
@@ -938,7 +990,7 @@ async function callAIRaw(messages){
         const r=await fetchWithTimeout('https://generativelanguage.googleapis.com/v1beta/models/'+models[i]+':generateContent?key='+encodeURIComponent(S.geminiKey),{
           method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({
-            systemInstruction:{parts:[{text:SYS_PROMPT}]},
+            systemInstruction:{parts:[{text:sys}]},
             contents:messages.map(function(m){return {role:m.role==='user'?'user':'model',parts:[{text:m.content}]};})
           })});
         if(r.status===400||r.status===403) throw new Error('APIキーが正しくないようです');
@@ -957,10 +1009,10 @@ async function callAIRaw(messages){
   try{
     const r=await fetchWithTimeout('https://text.pollinations.ai/openai',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'openai',messages:[{role:'system',content:SYS_PROMPT}].concat(messages)})});
+      body:JSON.stringify({model:'openai',messages:[{role:'system',content:sys}].concat(messages)})});
     if(r.ok){ const d=await r.json(); const t=((d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||'').trim(); if(t) return t; }
   }catch(e){}
-  const r=await fetchWithTimeout('https://text.pollinations.ai/'+encodeURIComponent(buildPromptFrom(messages)));
+  const r=await fetchWithTimeout('https://text.pollinations.ai/'+encodeURIComponent(sys+'\n\n'+buildPromptFrom(messages)));
   if(!r.ok) throw new Error('無料AIが混雑中');
   const t=(await r.text()).trim();
   if(!t) throw new Error('empty');
@@ -987,7 +1039,7 @@ async function sendToAI(){
     appendMsg('assistant',text);
     speakBilingual(text);
   }catch(e){
-    t.textContent = S.geminiKey
+    t.textContent = (S.claudeKey||S.geminiKey)
       ? '⚠️ AIに接続できませんでした。'+(String(e.message).indexOf('APIキー')>=0?'APIキーが正しいか確認してください。':'時間を置いてもう一度試してください。')
       : '⚠️ 無料AIが混雑しています。下の「⚙️ AIの頭脳を設定」(無料・約2分)を行うと、安定して使えるようになります。';
     t.classList.remove('typing');
@@ -1033,23 +1085,30 @@ async function addPhraseFromAI(en,btn){
 function saveKey(){
   const k=document.getElementById('gemKey').value.trim();
   if(!k){ alert('キーを貼り付けてから保存を押してください'); return; }
-  S.geminiKey=k; save();
+  if(k.indexOf('sk-ant')===0){ S.claudeKey=k; }
+  else if(k.indexOf('AIza')===0){ S.geminiKey=k; }
+  else{ alert('キーの形式が確認できません。AIzaSy…(Gemini) か sk-ant-…(Claude) のキーを貼ってください。'); return; }
+  save();
   document.getElementById('gemKey').value='';
   updateKeyStatus(true);
 }
 function updateKeyStatus(justSaved){
   const el=document.getElementById('keyStatus');
   if(!el) return;
-  el.textContent = S.geminiKey
-    ? (justSaved===true?'✅ 保存しました!AI先生が高品質モードになりました。':'✅ 設定済み(高品質モードで動作中)')
+  const brain = S.claudeKey ? 'Claude' : (S.geminiKey ? 'Gemini' : null);
+  el.textContent = brain
+    ? (justSaved===true?('✅ 保存しました!AIの頭脳: '+brain+' で動作します。'):('✅ 設定済み(頭脳: '+brain+')'))
     : '未設定: 混雑しがちな無料AIで動作中。上の手順で安定化できます。';
   const row=document.getElementById('shareKeyRow'), hint=document.getElementById('shareKeyHint');
-  if(row){ row.classList.toggle('hidden',!S.geminiKey); hint.classList.toggle('hidden',!S.geminiKey); }
+  if(row){ row.classList.toggle('hidden',!brain); hint.classList.toggle('hidden',!brain); }
 }
 
 /* 設定済みリンク: 開くだけでその端末にAIキーを設定 */
 function copySetupLink(){
-  const url=location.origin+location.pathname+'#k='+encodeURIComponent(S.geminiKey);
+  const parts=[];
+  if(S.geminiKey) parts.push('k='+encodeURIComponent(S.geminiKey));
+  if(S.claudeKey) parts.push('ck='+encodeURIComponent(S.claudeKey));
+  const url=location.origin+location.pathname+'#'+parts.join('&');
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(url).then(
       function(){ toast('✅ リンクをコピーしました。開いた先でブックマーク/ホーム画面追加すれば設定はずっと保持されます。'); },
@@ -1057,12 +1116,185 @@ function copySetupLink(){
   }else{ prompt('このリンクをコピーしてください', url); }
 }
 
+/* ================= 🎭 場面ロールプレイ ================= */
+const RP_SCENES=['レストラン','買い物','道をたずねる','空港・ホテル','あいさつ・雑談','病院'];
+let rp={scene:null,hist:[],busy:false};
+
+function rpSys(scene){
+  return 'あなたは英会話初心者の日本人の会話練習相手です。場面:「'+scene+'」。この場面の相手役(店員・通行人など)になりきってください。ルール:\n'
+  +'1. 英語で話す。1〜2文、中学レベルの簡単な単語のみ\n'
+  +'2. あなたの英語のセリフは必ず «...» で囲み、直後にその日本語訳を書く\n'
+  +'3. 毎回、質問や促しで終えて相手が話せるようにする\n'
+  +'4. 相手の英語が間違っていても訂正で会話を止めない。より自然な言い方があれば日本語で一言だけ添える\n'
+  +'5. 5往復ほどしたら会話を自然に締めくくり、最後に必ず「🎉会話クリア!」と書く\n'
+  +'6. 箇条書きやマークダウン記号は使わない';
+}
+
+function rpRenderScenes(){
+  const box=document.getElementById('rpScenes');
+  if(!box) return;
+  box.innerHTML='';
+  RP_SCENES.forEach(function(s){
+    const c=document.createElement('button');
+    c.className='btn'; c.style.fontSize='13px'; c.style.padding='9px 14px';
+    c.textContent=s;
+    c.onclick=function(){ rpStart(s); };
+    box.appendChild(c);
+  });
+  document.getElementById('rpRecord').textContent = S.rpCleared ? ('🎉 これまでにクリアした会話: '+S.rpCleared+'回') : '';
+}
+
+async function rpStart(scene){
+  rp={scene:scene,hist:[],busy:false};
+  document.getElementById('rpScenes').classList.add('hidden');
+  document.getElementById('rpChat').classList.remove('hidden');
+  document.getElementById('rpChat').innerHTML='';
+  document.getElementById('rpInputRow').classList.remove('hidden');
+  document.getElementById('rpHelpRow').classList.remove('hidden');
+  await rpCall('(ロールプレイ開始。場面「'+scene+'」の相手役として、あなたから英語で話しかけてください)');
+}
+
+async function rpCall(userText){
+  if(rp.busy) return;
+  rp.busy=true;
+  rp.hist.push({role:'user',content:userText});
+  const box=document.getElementById('rpChat');
+  const t=document.createElement('div'); t.className='msg ai typing'; t.textContent='…';
+  box.appendChild(t); box.scrollTop=box.scrollHeight;
+  try{
+    const text=await callAIRaw(rp.hist.slice(-14), rpSys(rp.scene));
+    t.remove();
+    rp.hist.push({role:'assistant',content:text});
+    appendMsg('assistant',text,true,'rpChat');
+    speakBilingual(text);
+    if(text.indexOf('🎉')>=0){
+      S.rpCleared=(S.rpCleared||0)+1; save();
+      document.getElementById('rpInputRow').classList.add('hidden');
+      const done=document.createElement('div'); done.className='msg ai';
+      done.textContent='🎉 会話クリア!おつかれさまでした。緑の単語はタップで発音、フレーズは➕でデッキに追加できます。';
+      box.appendChild(done); box.scrollTop=box.scrollHeight;
+    }
+  }catch(e){
+    t.textContent=(S.claudeKey||S.geminiKey)?'⚠️ AIに接続できませんでした。もう一度送ってください。':'⚠️ ロールプレイにはAI設定が必要です。下の「⚙️ AIの頭脳を設定」を行ってください。';
+    t.classList.remove('typing');
+    rp.hist.pop();
+  }
+  rp.busy=false;
+}
+
+function rpSend(){
+  const inp=document.getElementById('rpInput');
+  const v=inp.value.trim(); if(!v) return;
+  inp.value='';
+  appendMsg('user',v,true,'rpChat');
+  rpCall(v);
+}
+function rpListen(){
+  startRec('rpMicBtn','en-US','🎙️','🎤',function(tr){
+    document.getElementById('rpInput').value=tr;
+    rpSend();
+  });
+}
+async function rpHint(){
+  if(!rp.scene||rp.busy) return;
+  const box=document.getElementById('rpChat');
+  const t=document.createElement('div'); t.className='msg ai typing'; t.textContent='💡…';
+  box.appendChild(t); box.scrollTop=box.scrollHeight;
+  try{
+    const msgs=rp.hist.slice(-8).concat([{role:'user',content:'(これはヒント要求です。会話は進めず、私が次に言うとよい内容を日本語で1文示し、使える英語フレーズを«»で1つだけ添えてください)'}]);
+    const text=await callAIRaw(msgs, rpSys(rp.scene));
+    t.remove();
+    appendMsg('assistant','💡 '+text,true,'rpChat');
+  }catch(e){ t.textContent='💡 ヒントを取得できませんでした'; t.classList.remove('typing'); }
+}
+function rpRescue(){
+  const box=document.getElementById('rpChat');
+  if(document.getElementById('rescueChips')){ document.getElementById('rescueChips').remove(); return; }
+  const chips=document.createElement('div'); chips.className='chips'; chips.id='rescueChips';
+  [['Sorry?','え?(聞き返し)'],['Could you say that again?','もう一度言って'],['Let me think...','えーっと…'],["I don't understand.",'わかりません'],['Thank you!','ありがとう']].forEach(function(p){
+    const c=document.createElement('div'); c.className='chip';
+    const sp=document.createElement('span'); sp.textContent=p[0]+'('+p[1]+')';
+    const b=document.createElement('button'); b.textContent='▶ 使う';
+    b.onclick=function(){ chips.remove(); appendMsg('user',p[0],true,'rpChat'); speak(p[0],0.9); rpCall(p[0]); };
+    c.appendChild(sp); c.appendChild(b); chips.appendChild(c);
+  });
+  box.appendChild(chips); box.scrollTop=box.scrollHeight;
+}
+function rpEnd(){
+  rp={scene:null,hist:[],busy:false};
+  document.getElementById('rpChat').classList.add('hidden');
+  document.getElementById('rpInputRow').classList.add('hidden');
+  document.getElementById('rpHelpRow').classList.add('hidden');
+  document.getElementById('rpScenes').classList.remove('hidden');
+  rpRenderScenes();
+}
+
+/* ================= 🎯 今週のミッション ================= */
+function weekStart(){ const d=new Date(); const day=(d.getDay()+6)%7; d.setDate(d.getDate()-day); return d.toISOString().slice(0,10); }
+function ensureMission(){
+  const ws=weekStart();
+  if(S.mission && S.mission.week===ws && S.cards.some(function(c){return c.id===S.mission.cardId;})) return;
+  const pool=S.cards.filter(function(c){return c.reps>=2;});
+  const pick=pool.length?pool[Math.floor(Math.random()*pool.length)]:null;
+  S.mission={week:ws,cardId:pick?pick.id:null,done:false};
+  save();
+}
+function renderMission(){
+  const el=document.getElementById('missionBox');
+  if(!el) return;
+  ensureMission();
+  el.innerHTML='';
+  if(!S.mission.cardId){
+    el.innerHTML='<p class="hint">トレーニングを続けると(2回以上復習したカードから)今週のミッションが選ばれます。</p>';
+  }else{
+    const c=S.cards.find(function(x){return x.id===S.mission.cardId;});
+    const d=document.createElement('div'); d.className='deck-item';
+    const info=document.createElement('div');
+    info.innerHTML='<div>'+c.ja+'</div><div class="en">'+c.en+'</div>';
+    const sp=document.createElement('button'); sp.textContent='🔊'; sp.style.color='var(--text)'; sp.style.fontSize='18px';
+    sp.onclick=function(){ speak(c.en,0.9); };
+    d.appendChild(info); d.appendChild(sp); el.appendChild(d);
+    const btn=document.createElement('button');
+    btn.className='btn primary'; btn.style.marginTop='8px';
+    if(S.mission.done){ btn.textContent='✅ 今週は達成済み!'; btn.disabled=true; }
+    else{
+      btn.textContent='✅ 実際に使えた!';
+      btn.onclick=function(){
+        S.mission.done=true;
+        S.wins=S.wins||[];
+        S.wins.push({date:today(),ja:c.ja,en:c.en});
+        c.ivl=Math.max(c.ivl,Math.round((c.ivl||1)*1.3));
+        c.due=addDays(c.ivl);
+        save(); renderMission();
+        toast('🏆 すばらしい!実戦で使った文は最も記憶に残ります。記録に刻みました。');
+      };
+    }
+    el.appendChild(btn);
+  }
+  // 実戦の記録
+  const wb=document.getElementById('winsBox');
+  wb.innerHTML='';
+  if(S.wins && S.wins.length){
+    const h=document.createElement('p'); h.className='hint'; h.innerHTML='🏆 <b style="color:var(--text)">実際に使えた記録('+S.wins.length+'件)</b>';
+    wb.appendChild(h);
+    S.wins.slice().reverse().slice(0,10).forEach(function(w){
+      const d=document.createElement('div'); d.className='deck-item';
+      d.innerHTML='<div><div>'+w.en+'</div><div class="en">'+w.ja+' ・ '+w.date+'</div></div>';
+      wb.appendChild(d);
+    });
+  }
+}
+
 /* ================= 起動 ================= */
-/* 設定済みリンク(#k=)はURLに残し続ける: ブックマークやホーム画面追加で設定が永続化される */
-if(location.hash && location.hash.indexOf('#k=')===0){
-  const nk=decodeURIComponent(location.hash.slice(3));
-  if(nk && S.geminiKey!==nk){
-    S.geminiKey=nk; save();
+/* 設定済みリンク(#k=Gemini / #ck=Claude)はURLに残し続ける: ブックマークやホーム画面追加で設定が永続化される */
+if(location.hash && location.hash.length>1){
+  let changed=false;
+  location.hash.slice(1).split('&').forEach(function(p){
+    if(p.indexOf('k=')===0){ const v=decodeURIComponent(p.slice(2)); if(v && S.geminiKey!==v){ S.geminiKey=v; changed=true; } }
+    if(p.indexOf('ck=')===0){ const v=decodeURIComponent(p.slice(3)); if(v && S.claudeKey!==v){ S.claudeKey=v; changed=true; } }
+  });
+  if(changed){
+    save();
     setTimeout(function(){ toast('✅ AIキーを設定しました。このページをそのままブックマーク/ホーム画面に追加すると、設定が消えることはありません。'); },600);
   }
 }
