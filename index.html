@@ -101,6 +101,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
 </header>
 <nav>
   <button id="navTrain" class="active" onclick="showTab('train')">トレーニング</button>
+  <button id="navTest" onclick="showTab('test')">テスト</button>
   <button id="navAi" onclick="showTab('ai')">AI先生</button>
   <button id="navStats" onclick="showTab('stats')">記録</button>
   <button id="navDeck" onclick="showTab('deck')">カード管理</button>
@@ -127,15 +128,18 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
 
     <!-- Phase 2: 答え合わせ + シャドーイング -->
     <div id="phaseAnswer" class="hidden">
-      <p class="hint">正解</p>
+      <p class="hint">正解(単語をタップすると、その単語だけゆっくり発音します)</p>
       <div class="answer-en" id="answerEn"></div>
       <div id="answerJa" class="hint"></div>
       <div id="diffResult"></div>
       <div class="btn-row">
-        <button class="btn primary" onclick="playTTS()">🔊 ネイティブ音声</button>
+        <button class="btn primary" onclick="playTTS()">🔊 全文</button>
         <button class="btn" onclick="playTTS(0.7)">🐢 ゆっくり</button>
+        <button class="btn" onclick="speakWordByWord()">🔤 1語ずつ</button>
+        <button class="btn" id="expBtn" onclick="explainCard()">📖 文の解説</button>
         <button class="btn mic" id="shadowBtn" onclick="startShadowing()">🎤 シャドーイング</button>
       </div>
+      <div id="expBox" class="hidden" style="background:var(--panel2);border-radius:12px;padding:14px;margin-top:12px;font-size:14px;line-height:1.9;white-space:pre-wrap"></div>
       <div id="shadowResult"></div>
       <p class="hint" style="margin-top:18px">どのくらい言えましたか?(正直な自己評価が記憶を最適化します)</p>
       <div class="grade-row">
@@ -154,7 +158,27 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
     <div class="btn-row" style="justify-content:center;margin-top:20px">
       <button class="btn primary" onclick="extraSession()">＋ 追加で新しいカードを学ぶ</button>
     </div>
+    <div id="todayReview" style="text-align:left;margin-top:24px"></div>
   </div>
+</section>
+
+<!-- ===== テスト ===== -->
+<section id="tab-test" class="hidden">
+  <div class="card" id="testSetup">
+    <h3 style="margin-bottom:8px">🏆 力試しテスト</h3>
+    <p class="hint" style="margin-bottom:12px">学習済みカードから4択で出題。「🎧 英語を聞いて意味を選ぶ」と「日本語→英語を選ぶ」の2種類が混ざって出ます。間違えた文はワンタップで今日の練習に戻せます。</p>
+    <button class="btn primary" onclick="startTest()">テスト開始(10問)</button>
+    <p class="hint" id="bestScore" style="margin-top:8px"></p>
+  </div>
+  <div class="card hidden" id="testCard">
+    <div class="hint" id="testProgress"></div>
+    <div class="prompt-ja" id="testQ" style="font-size:20px"></div>
+    <div class="btn-row hidden" id="testAudioRow">
+      <button class="btn primary" onclick="replayTestAudio()">🔊 もう一度聞く</button>
+    </div>
+    <div id="testChoices" style="display:grid;gap:8px;margin-top:14px"></div>
+  </div>
+  <div class="card hidden" id="testResult"></div>
 </section>
 
 <!-- ===== AI先生 ===== -->
@@ -243,7 +267,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
 </section>
 
 </main>
-<footer>英会話エンジン v2.0 — データはこのブラウザ内に保存されます</footer>
+<footer>英会話エンジン v3.0 — データはこのブラウザ内に保存されます</footer>
 
 <script>
 /* ================= 初期デッキ(チャンク=丸ごと使える文) ================= */
@@ -344,14 +368,80 @@ function nextCard(){
 function showDone(){
   document.getElementById('trainCard').classList.add('hidden');
   document.getElementById('doneCard').classList.remove('hidden');
+  renderTodayReview();
+}
+
+/* 今日学習したカードの見直し */
+function renderTodayReview(){
+  const t=today(); const ids=[];
+  S.log.forEach(function(l){ if(l.day===t && ids.indexOf(l.id)<0) ids.push(l.id); });
+  const cards=ids.map(function(id){ return S.cards.find(function(c){return c.id===id;}); }).filter(Boolean);
+  const el=document.getElementById('todayReview');
+  el.innerHTML='';
+  if(!cards.length) return;
+  const h=document.createElement('h3'); h.textContent='📚 今日の見直し('+cards.length+'枚)'; h.style.marginBottom='8px';
+  const hint=document.createElement('p'); hint.className='hint'; hint.textContent='🔊で発音を聞き直せます。寝る前にもう一度聞くと定着が深まります。'; hint.style.marginBottom='8px';
+  el.appendChild(h); el.appendChild(hint);
+  cards.forEach(function(c){
+    const d=document.createElement('div'); d.className='deck-item';
+    const info=document.createElement('div');
+    info.innerHTML='<div>'+c.ja+'</div><div class="en">'+c.en+'</div>';
+    const b=document.createElement('button'); b.textContent='🔊'; b.style.color='var(--text)'; b.style.fontSize='18px';
+    b.onclick=function(){ speak(c.en,0.9); };
+    d.appendChild(info); d.appendChild(b); el.appendChild(d);
+  });
+  const again=document.createElement('button'); again.className='btn primary'; again.style.marginTop='10px';
+  again.textContent='🔁 今日のカードをもう一度練習';
+  again.onclick=function(){ queue=cards.slice(); sessionTotal=queue.length; sessionDone=0; nextCard(); };
+  el.appendChild(again);
 }
 function extraSession(){ buildQueue(true); if(queue.length===0){alert('未学習のカードがありません。「カード管理」から追加できます!');return;} nextCard(); }
 
 /* ================= 答え表示 + SM-2 ================= */
+function renderAnswerWords(){
+  const el=document.getElementById('answerEn'); el.innerHTML='';
+  current.en.split(/\s+/).forEach(function(w){
+    const s=document.createElement('span');
+    s.textContent=w;
+    s.style.cssText='cursor:pointer;border-bottom:1px dotted rgba(154,163,199,.6);margin-right:7px;display:inline-block';
+    s.onclick=function(){ const c=w.replace(/[^A-Za-z'\-]/g,''); if(c) speak(c,0.55); };
+    el.appendChild(s);
+  });
+}
+function speakWordByWord(){
+  if(!('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  current.en.split(/\s+/).forEach(function(w){
+    const c=w.replace(/[^A-Za-z'\-]/g,''); if(!c) return;
+    const u=new SpeechSynthesisUtterance(c);
+    u.lang='en-US'; u.rate=0.65; const v=enVoice(); if(v)u.voice=v;
+    speechSynthesis.speak(u);
+  });
+  speechSynthesis.resume();
+}
+
+/* 文の構成をAIが解説(1回取得したらカードに保存) */
+async function explainCard(){
+  const btn=document.getElementById('expBtn');
+  const box=document.getElementById('expBox');
+  if(current.exp){ box.textContent=current.exp; box.classList.toggle('hidden'); return; }
+  btn.disabled=true; btn.textContent='作成中…';
+  try{
+    const p='次の英文を、英語が苦手な日本人の大人向けに解説してください。\n英文: '+current.en+'\n意味: '+current.ja+'\n次の3点を簡潔に(全体で250字以内、«»は使わない):\n1) 文の組み立て: 語順を「主語→動詞→…」のように矢印で\n2) 大事な単語: 読み方(カタカナ)と意味\n3) 応用: 単語を入れ替えた例文を1つ(日本語訳付き)';
+    const ans=await callAIRaw([{role:'user',content:p}]);
+    current.exp=ans; save();
+    box.textContent=ans; box.classList.remove('hidden');
+  }catch(e){ toast('解説を取得できませんでした。「AI先生」タブのAI設定を確認してください。'); }
+  btn.disabled=false; btn.textContent='📖 文の解説';
+}
+
 function revealAnswer(){
   document.getElementById('phaseRecall').classList.add('hidden');
   document.getElementById('phaseAnswer').classList.remove('hidden');
-  document.getElementById('answerEn').textContent=current.en;
+  renderAnswerWords();
+  document.getElementById('expBox').classList.add('hidden');
+  document.getElementById('expBox').textContent='';
+  const eb=document.getElementById('expBtn'); eb.disabled=false; eb.textContent='📖 文の解説';
   document.getElementById('answerJa').textContent=current.ja;
   [0,1,2,3].forEach(g=>{
     document.getElementById('iv'+g).textContent=ivlPreview(current,g);
@@ -502,14 +592,90 @@ function jaVoice(){
 
 /* ================= タブ・統計・デッキ ================= */
 function showTab(t){
-  ['train','ai','stats','deck','sci'].forEach(function(x){
+  ['train','test','ai','stats','deck','sci'].forEach(function(x){
     document.getElementById('tab-'+x).classList.toggle('hidden',x!==t);
     document.getElementById('nav'+x[0].toUpperCase()+x.slice(1)).classList.toggle('active',x===t);
   });
   if(t==='stats') renderStats();
   if(t==='deck') renderDeck();
   if(t==='ai') renderChat();
+  if(t==='test') document.getElementById('bestScore').textContent=S.bestTest?('ベストスコア: '+S.bestTest+'%'):'';
 }
+
+/* ================= 力試しテスト(4択) ================= */
+let test={qs:[],i:0,score:0,wrong:[]};
+function shuffleArr(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const tmp=a[i];a[i]=a[j];a[j]=tmp;}return a;}
+
+function startTest(){
+  const pool=S.cards.filter(function(c){return c.total>0;});
+  if(pool.length<4){ alert('テストには学習済みカードが4枚以上必要です。まず「トレーニング」をやってみましょう!'); return; }
+  test={qs:shuffleArr(pool.slice()).slice(0,10).map(function(c){return {card:c,type:Math.random()<0.5?'listen':'j2e'};}),i:0,score:0,wrong:[]};
+  document.getElementById('testSetup').classList.add('hidden');
+  document.getElementById('testResult').classList.add('hidden');
+  document.getElementById('testCard').classList.remove('hidden');
+  showTestQ();
+}
+function replayTestAudio(){ speak(test.qs[test.i].card.en,0.9); }
+function showTestQ(){
+  const q=test.qs[test.i];
+  document.getElementById('testProgress').textContent='第'+(test.i+1)+'問 / '+test.qs.length+'問(正解 '+test.score+')';
+  const others=shuffleArr(S.cards.filter(function(c){return c.id!==q.card.id;}).slice()).slice(0,3);
+  const choices=shuffleArr([q.card].concat(others));
+  const box=document.getElementById('testChoices'); box.innerHTML='';
+  if(q.type==='listen'){
+    document.getElementById('testQ').textContent='🎧 英語を聞いて、意味を選んでください';
+    document.getElementById('testAudioRow').classList.remove('hidden');
+    speak(q.card.en,0.9);
+    choices.forEach(function(c){ box.appendChild(choiceBtn(c.ja, c.id===q.card.id, q)); });
+  }else{
+    document.getElementById('testQ').textContent='「'+q.card.ja+'」を英語で言うと?';
+    document.getElementById('testAudioRow').classList.add('hidden');
+    choices.forEach(function(c){ box.appendChild(choiceBtn(c.en, c.id===q.card.id, q)); });
+  }
+}
+function choiceBtn(label,correct,q){
+  const b=document.createElement('button');
+  b.className='btn'; b.style.textAlign='left'; b.style.fontWeight='600'; b.style.fontSize='14px';
+  b.textContent=label;
+  if(correct) b.dataset.correct='1';
+  b.onclick=function(){
+    if(b.dataset.done) return; b.dataset.done='1';
+    const all=document.getElementById('testChoices').children;
+    for(let i=0;i<all.length;i++) all[i].disabled=true;
+    if(correct){ b.style.background='var(--green)'; b.style.color='#10131f'; test.score++; }
+    else{
+      b.style.background='var(--red)';
+      test.wrong.push(q.card);
+      for(let i=0;i<all.length;i++){ if(all[i].dataset.correct==='1'){ all[i].style.background='var(--green)'; all[i].style.color='#10131f'; } }
+    }
+    speak(q.card.en,0.95);
+    setTimeout(function(){ test.i++; if(test.i<test.qs.length) showTestQ(); else endTest(); },1500);
+  };
+  return b;
+}
+function endTest(){
+  document.getElementById('testCard').classList.add('hidden');
+  const r=document.getElementById('testResult');
+  const pct=Math.round(100*test.score/test.qs.length);
+  let html='<div class="score-big">'+(pct>=80?'🌟':pct>=50?'👍':'💪')+' '+test.score+' / '+test.qs.length+'問正解</div>';
+  if(test.wrong.length){
+    html+='<p class="hint" style="margin:10px 0">間違えた文(テスト直後の復習が最も記憶に残ります):</p>';
+    test.wrong.forEach(function(c){ html+='<div class="deck-item"><div><div>'+c.ja+'</div><div class="en">'+c.en+'</div></div></div>'; });
+    html+='<div class="btn-row"><button class="btn primary" onclick="retryWrong()">間違えたカードを今日の練習に入れる</button><button class="btn" onclick="resetTest()">もう一度テスト</button></div>';
+  }else{
+    html+='<p class="hint" style="text-align:center">全問正解!素晴らしい!</p><div class="btn-row" style="justify-content:center"><button class="btn primary" onclick="resetTest()">もう一度テスト</button></div>';
+  }
+  r.innerHTML=html; r.classList.remove('hidden');
+  document.getElementById('testSetup').classList.remove('hidden');
+  S.bestTest=Math.max(S.bestTest||0,pct); save();
+  document.getElementById('bestScore').textContent='ベストスコア: '+S.bestTest+'%';
+}
+function retryWrong(){
+  test.wrong.forEach(function(c){ c.due=today(); });
+  save(); buildQueue(); showTab('train'); nextCard();
+  toast('間違えたカードを今日の練習に追加しました');
+}
+function resetTest(){ document.getElementById('testResult').classList.add('hidden'); startTest(); }
 function updateHeader(){
   document.getElementById('streak').textContent=S.streak;
   document.getElementById('dueCount').textContent=queue.length+(current?1:0);
@@ -625,14 +791,14 @@ function fetchWithTimeout(url,opts,ms){
   return fetch(url,opts).finally(function(){clearTimeout(id);});
 }
 
-function buildPrompt(){
-  let lines=(S.chat||[]).slice(-8).map(function(m){return (m.role==='user'?'生徒: ':'先生: ')+m.content;});
+function buildPromptFrom(messages){
+  let lines=messages.slice(-8).map(function(m){return (m.role==='user'?'生徒: ':'先生: ')+m.content;});
   while(lines.join('\n').length>600 && lines.length>1) lines.shift();
   return SYS_PROMPT+'\n\n--- これまでの会話 ---\n'+lines.join('\n')+'\n先生:';
 }
 
 /* Gemini(キー設定済みなら最優先)→ 無料エンドポイントの順に試す */
-async function callAI(){
+async function callAIRaw(messages){
   if(S.geminiKey){
     const models=['gemini-2.5-flash','gemini-2.0-flash','gemini-flash-latest'];
     for(let i=0;i<models.length;i++){
@@ -641,7 +807,7 @@ async function callAI(){
           method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({
             systemInstruction:{parts:[{text:SYS_PROMPT}]},
-            contents:S.chat.slice(-12).map(function(m){return {role:m.role==='user'?'user':'model',parts:[{text:m.content}]};})
+            contents:messages.map(function(m){return {role:m.role==='user'?'user':'model',parts:[{text:m.content}]};})
           })});
         if(r.status===400||r.status===403) throw new Error('APIキーが正しくないようです');
         if(r.ok){
@@ -659,15 +825,16 @@ async function callAI(){
   try{
     const r=await fetchWithTimeout('https://text.pollinations.ai/openai',{
       method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'openai',messages:[{role:'system',content:SYS_PROMPT}].concat(S.chat.slice(-12))})});
+      body:JSON.stringify({model:'openai',messages:[{role:'system',content:SYS_PROMPT}].concat(messages)})});
     if(r.ok){ const d=await r.json(); const t=((d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||'').trim(); if(t) return t; }
   }catch(e){}
-  const r=await fetchWithTimeout('https://text.pollinations.ai/'+encodeURIComponent(buildPrompt()));
+  const r=await fetchWithTimeout('https://text.pollinations.ai/'+encodeURIComponent(buildPromptFrom(messages)));
   if(!r.ok) throw new Error('無料AIが混雑中');
   const t=(await r.text()).trim();
   if(!t) throw new Error('empty');
   return t;
 }
+function callAI(){ return callAIRaw((S.chat||[]).slice(-12)); }
 
 async function sendToAI(){
   const inp=document.getElementById('aiInput');
