@@ -218,6 +218,11 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
 <!-- ===== 記録 ===== -->
 <section id="tab-stats" class="hidden">
   <div class="card">
+    <h3 style="margin-bottom:4px">📅 今日の学習</h3>
+    <p class="hint" style="margin-bottom:10px">今日やったことの見返し。🔊で発音を聞き直せます。</p>
+    <div id="dailyLog"></div>
+  </div>
+  <div class="card">
     <h2 style="margin-bottom:14px">学習記録</h2>
     <div class="stat-grid">
       <div class="stat-box"><div class="num" id="stTotal">0</div><div class="lbl">総レビュー数</div></div>
@@ -274,7 +279,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
 </section>
 
 </main>
-<footer>英会話エンジン v3.5 — データはこのブラウザ内に保存されます</footer>
+<footer>英会話エンジン v3.6 — データはこのブラウザ内に保存されます</footer>
 
 <script>
 /* ================= 初期デッキ(チャンク=丸ごと使える文) ================= */
@@ -749,7 +754,51 @@ function updateHeader(){
   document.getElementById('streak').textContent=S.streak;
   document.getElementById('dueCount').textContent=queue.length+(current?1:0);
 }
+/* 今日やったことの見返し(記録タブ常設) */
+function renderDailyLog(){
+  const el=document.getElementById('dailyLog');
+  if(!el) return;
+  el.innerHTML='';
+  const t=today();
+  const logs=S.log.filter(function(l){return l.day===t;});
+  if(!logs.length){
+    el.innerHTML='<p class="hint">今日はまだ学習していません。「トレーニング」から始めましょう!</p>';
+    return;
+  }
+  // サマリー
+  const ok=logs.filter(function(l){return l.g>=2;}).length;
+  const sum=document.createElement('p');
+  sum.className='hint';
+  sum.style.marginBottom='10px';
+  sum.innerHTML='今日のレビュー: <b style="color:var(--text)">'+logs.length+'回</b> ・ 言えた率: <b style="color:var(--text)">'+Math.round(100*ok/logs.length)+'%</b>';
+  el.appendChild(sum);
+  // カードごとの最終評価
+  const lastG={}, order=[];
+  logs.forEach(function(l){ if(order.indexOf(l.id)<0) order.push(l.id); lastG[l.id]=l.g; });
+  const gLabel=['😣 無理だった','🙂 難しい','😊 言えた','😎 余裕'];
+  const gColor=['var(--red)','var(--orange)','var(--yellow)','var(--green)'];
+  const cards=[];
+  order.forEach(function(id){
+    const c=S.cards.find(function(x){return x.id===id;});
+    if(!c) return;
+    cards.push(c);
+    const d=document.createElement('div'); d.className='deck-item';
+    const info=document.createElement('div');
+    info.innerHTML='<div>'+c.ja+' <span style="font-size:11px;color:'+gColor[lastG[id]]+'">'+gLabel[lastG[id]]+'</span></div><div class="en">'+c.en+'</div>';
+    const b=document.createElement('button'); b.textContent='🔊'; b.style.color='var(--text)'; b.style.fontSize='18px';
+    b.onclick=function(){ speak(c.en,0.9); };
+    d.appendChild(info); d.appendChild(b); el.appendChild(d);
+  });
+  if(cards.length){
+    const again=document.createElement('button'); again.className='btn primary'; again.style.marginTop='10px';
+    again.textContent='🔁 今日のカードをもう一度練習';
+    again.onclick=function(){ queue=cards.slice(); sessionTotal=queue.length; sessionDone=0; showTab('train'); nextCard(); };
+    el.appendChild(again);
+  }
+}
+
 function renderStats(){
+  renderDailyLog();
   document.getElementById('stTotal').textContent=S.totalReviews;
   document.getElementById('stStreak').textContent=S.streak;
   document.getElementById('stMature').textContent=S.cards.filter(function(c){return c.ivl>=21;}).length;
