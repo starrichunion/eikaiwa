@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>英会話エンジン — 科学的英会話トレーナー</title>
+<style>
+:root{
+  --bg:#0f1220; --panel:#1a1f35; --panel2:#232a4a; --text:#eef1ff; --sub:#9aa3c7;
+  --accent:#5b8cff; --green:#3ddc84; --red:#ff5b6e; --yellow:#ffd166; --orange:#ff9f43;
+  --radius:16px;
+}
+*{box-sizing:border-box;margin:0;padding:0;font-family:"Segoe UI","Hiragino Sans","Yu Gothic UI",sans-serif}
+body{background:var(--bg);color:var(--text);min-height:100vh}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--panel);position:sticky;top:0;z-index:10;box-shadow:0 2px 12px rgba(0,0,0,.4)}
+header h1{font-size:18px;letter-spacing:1px}
+header h1 span{color:var(--accent)}
+.badges{display:flex;gap:14px;font-size:13px;color:var(--sub)}
+.badges b{color:var(--text)}
+nav{display:flex;gap:6px;padding:10px 20px;background:var(--panel)}
+nav button{flex:1;max-width:160px;padding:10px;border:none;border-radius:10px;background:transparent;color:var(--sub);font-size:14px;cursor:pointer;font-weight:600}
+nav button.active{background:var(--accent);color:#fff}
+main{max-width:760px;margin:0 auto;padding:20px}
+.card{background:var(--panel);border-radius:var(--radius);padding:24px;margin-bottom:16px}
+.hidden{display:none!important}
+.tag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:12px;background:var(--panel2);color:var(--sub);margin-right:6px}
+.prompt-ja{font-size:26px;line-height:1.5;margin:18px 0;font-weight:700}
+.hint{color:var(--sub);font-size:13px}
+.answer-en{font-size:24px;color:var(--green);margin:14px 0;font-weight:700;line-height:1.4}
+.btn{padding:13px 22px;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;color:#fff;background:var(--panel2)}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--accent)}
+.btn.mic{background:var(--red)}
+.btn.mic.listening{animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.grade-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}
+.grade-row button{padding:12px 4px;border:none;border-radius:12px;font-weight:700;cursor:pointer;color:#10131f;font-size:14px}
+.grade-row small{display:block;font-weight:400;font-size:11px;margin-top:3px;opacity:.75}
+.g0{background:var(--red);color:#fff}.g1{background:var(--orange)}.g2{background:var(--yellow)}.g3{background:var(--green)}
+.transcript{background:var(--panel2);border-radius:12px;padding:14px;margin-top:14px;font-size:17px;line-height:1.6}
+.transcript .ok{color:var(--green);font-weight:700}
+.transcript .ng{color:var(--red);text-decoration:line-through}
+.transcript .miss{color:var(--orange);font-weight:700}
+.score-big{font-size:34px;font-weight:800;text-align:center;margin:8px 0}
+.progressbar{height:8px;background:var(--panel2);border-radius:4px;overflow:hidden;margin:10px 0}
+.progressbar div{height:100%;background:var(--accent);transition:width .3s}
+input[type=text],textarea,select{width:100%;padding:12px;border-radius:10px;border:1px solid var(--panel2);background:var(--panel2);color:var(--text);font-size:15px;margin-bottom:10px}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.stat-box{background:var(--panel2);border-radius:12px;padding:16px;text-align:center}
+.stat-box .num{font-size:30px;font-weight:800;color:var(--accent)}
+.stat-box .lbl{font-size:12px;color:var(--sub);margin-top:4px}
+.deck-item{display:flex;justify-content:space-between;align-items:center;background:var(--panel2);border-radius:10px;padding:10px 14px;margin-bottom:8px;font-size:14px}
+.deck-item .en{color:var(--sub);font-size:12px}
+.deck-item button{background:none;border:none;color:var(--red);cursor:pointer;font-size:16px}
+.science{font-size:14px;line-height:1.9;color:var(--sub)}
+.science b{color:var(--text)}
+.done-msg{text-align:center;padding:40px 0}
+.done-msg .big{font-size:48px}
+.shadow-text{font-size:22px;line-height:1.6;font-weight:700;margin:16px 0}
+.bars{display:flex;align-items:flex-end;gap:4px;height:90px;margin-top:10px}
+.bars .bar{flex:1;background:var(--accent);border-radius:3px 3px 0 0;min-height:2px;position:relative}
+.bars .bar i{position:absolute;bottom:-18px;left:0;right:0;text-align:center;font-size:9px;color:var(--sub);font-style:normal}
+.chat{display:flex;flex-direction:column;gap:10px;max-height:55vh;overflow-y:auto;margin-bottom:14px}
+.msg{max-width:88%;padding:12px 15px;border-radius:14px;font-size:15px;line-height:1.8;white-space:pre-wrap}
+.msg.user{align-self:flex-end;background:var(--accent)}
+.msg.ai{align-self:flex-start;background:var(--panel2)}
+.msg .en{color:var(--green);font-weight:700}
+.typing{color:var(--sub);font-style:italic}
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-self:flex-start;max-width:100%}
+.chip{background:var(--panel2);border:1px solid var(--accent);border-radius:20px;padding:7px 12px;font-size:13px;display:flex;gap:8px;align-items:center}
+.chip button{background:none;border:none;cursor:pointer;font-size:13px;color:var(--text);padding:0}
+.ai-input-row{display:flex;gap:8px}
+.ai-input-row input{flex:1;margin-bottom:0}
+footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
+@media(max-width:600px){
+  .prompt-ja{font-size:21px}
+  .answer-en{font-size:19px}
+  header{padding:10px 12px}
+  header h1{font-size:15px}
+  .badges{gap:8px;font-size:11px}
+  nav{padding:8px 8px;gap:4px;overflow-x:auto}
+  nav button{padding:9px 6px;font-size:12px;white-space:nowrap}
+  main{padding:12px}
+  .card{padding:16px;border-radius:12px}
+  .btn{padding:12px 14px;font-size:14px;flex:1}
+  .grade-row button{padding:10px 2px;font-size:12px}
+  .chat{max-height:48vh}
+  .msg{font-size:14px}
+  input[type=text]{font-size:16px} /* iOSの自動ズーム防止 */
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>英会話<span>エンジン</span></h1>
+  <div class="badges">
+    <div>🔥 連続 <b id="streak">0</b>日</div>
+    <div>📋 今日 <b id="dueCount">0</b>枚</div>
+  </div>
+</header>
+<nav>
+  <button id="navTrain" class="active" onclick="showTab('train')">トレーニング</button>
+  <button id="navAi" onclick="showTab('ai')">AI先生</button>
+  <button id="navStats" onclick="showTab('stats')">記録</button>
+  <button id="navDeck" onclick="showTab('deck')">カード管理</button>
+  <button id="navSci" onclick="showTab('sci')">仕組み</button>
+</nav>
+<main>
+
+<!-- ===== トレーニング ===== -->
+<section id="tab-train">
+  <div class="card" id="trainCard">
+    <div id="cardMeta"></div>
+    <div class="progressbar"><div id="sessionProgress" style="width:0%"></div></div>
+
+    <!-- Phase 1: 想起 -->
+    <div id="phaseRecall">
+      <p class="hint">この日本語を、声に出して英語で言ってみてください(まず自力で思い出すことが最重要)</p>
+      <div class="prompt-ja" id="promptJa"></div>
+      <div class="btn-row">
+        <button class="btn mic" id="micBtn" onclick="startListening()">🎤 音声で答える</button>
+        <button class="btn" onclick="revealAnswer()">答えを見る</button>
+      </div>
+      <div id="recallResult"></div>
+    </div>
+
+    <!-- Phase 2: 答え合わせ + シャドーイング -->
+    <div id="phaseAnswer" class="hidden">
+      <p class="hint">正解</p>
+      <div class="answer-en" id="answerEn"></div>
+      <div id="answerJa" class="hint"></div>
+      <div id="diffResult"></div>
+      <div class="btn-row">
+        <button class="btn primary" onclick="playTTS()">🔊 ネイティブ音声</button>
+        <button class="btn" onclick="playTTS(0.7)">🐢 ゆっくり</button>
+        <button class="btn mic" id="shadowBtn" onclick="startShadowing()">🎤 シャドーイング</button>
+      </div>
+      <div id="shadowResult"></div>
+      <p class="hint" style="margin-top:18px">どのくらい言えましたか?(正直な自己評価が記憶を最適化します)</p>
+      <div class="grade-row">
+        <button class="g0" onclick="grade(0)">無理だった<small id="iv0"></small></button>
+        <button class="g1" onclick="grade(1)">難しい<small id="iv1"></small></button>
+        <button class="g2" onclick="grade(2)">言えた<small id="iv2"></small></button>
+        <button class="g3" onclick="grade(3)">余裕<small id="iv3"></small></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card done-msg hidden" id="doneCard">
+    <div class="big">🎉</div>
+    <h2>今日のセッション完了!</h2>
+    <p class="hint" style="margin-top:10px">脳が記憶を定着させるのは「練習後の睡眠中」です。<br>明日また来ることが、文明レベルを引き上げる唯一の道。</p>
+    <div class="btn-row" style="justify-content:center;margin-top:20px">
+      <button class="btn primary" onclick="extraSession()">＋ 追加で新しいカードを学ぶ</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===== AI先生 ===== -->
+<section id="tab-ai" class="hidden">
+  <div class="card">
+    <h3 style="margin-bottom:6px">🧑‍🏫 AI先生に何でも聞く</h3>
+    <p class="hint" style="margin-bottom:12px">例:「マックでコーラをLサイズで2個頼むときは何て言えばいいの?」<br>🎤を押して日本語で話しかけるだけ(文字入力もOK)。教わったフレーズは ➕ でそのまま復習デッキに入ります。</p>
+    <div class="chat" id="chatBox"></div>
+    <div class="ai-input-row">
+      <button class="btn mic" id="aiMicBtn" onclick="aiListen()">🎤</button>
+      <input type="text" id="aiInput" placeholder="日本語で質問してください" onkeydown="if(event.key==='Enter')sendToAI()">
+      <button class="btn primary" onclick="sendToAI()">送信</button>
+    </div>
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--panel2)">
+      <h4 style="margin-bottom:6px">⚙️ AIの頭脳を設定(無料・最初の1回だけ)</h4>
+      <p class="hint" style="margin-bottom:8px">
+        ① <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--accent)">Google AI Studio</a> をGoogleアカウントで開く<br>
+        ② 「APIキーを作成」ボタンを押して、表示されたキーをコピー<br>
+        ③ 下に貼り付けて保存 — 以後ずっと安定した高品質AIで動きます
+      </p>
+      <div class="ai-input-row">
+        <input type="text" id="gemKey" placeholder="AIzaSy… で始まるキーを貼り付け">
+        <button class="btn primary" onclick="saveKey()">保存</button>
+      </div>
+      <p class="hint" id="keyStatus" style="margin-top:6px"></p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 記録 ===== -->
+<section id="tab-stats" class="hidden">
+  <div class="card">
+    <h2 style="margin-bottom:14px">学習記録</h2>
+    <div class="stat-grid">
+      <div class="stat-box"><div class="num" id="stTotal">0</div><div class="lbl">総レビュー数</div></div>
+      <div class="stat-box"><div class="num" id="stStreak">0</div><div class="lbl">連続学習日数</div></div>
+      <div class="stat-box"><div class="num" id="stMature">0</div><div class="lbl">定着したカード</div></div>
+      <div class="stat-box"><div class="num" id="stAcc">-</div><div class="lbl">直近の成功率</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>今後7日間の復習予定</h3>
+    <p class="hint">忘却曲線に基づき、忘れる直前に自動で出題されます</p>
+    <div class="bars" id="forecastBars"></div>
+    <div style="height:20px"></div>
+  </div>
+</section>
+
+<!-- ===== カード管理 ===== -->
+<section id="tab-deck" class="hidden">
+  <div class="card">
+    <h3 style="margin-bottom:10px">カードを追加(日本語だけでOK)</h3>
+    <p class="hint" style="margin-bottom:10px">言いたいことを日本語で入力するだけ。英語への変換と発音はツールがやります。</p>
+    <input type="text" id="newJa" placeholder="例: 孫の写真を見せましょうか?">
+    <button class="btn primary" id="transBtn" onclick="translateAndPreview()">英語に変換 →</button>
+    <div id="previewBox" class="hidden" style="margin-top:16px">
+      <p class="hint">この英語になりました(自動で読み上げます)</p>
+      <input type="text" id="newEn" style="color:var(--green);font-weight:700;font-size:17px">
+      <div class="btn-row">
+        <button class="btn" onclick="speak(document.getElementById('newEn').value)">🔊 もう一度聞く</button>
+        <button class="btn" onclick="speak(document.getElementById('newEn').value,0.7)">🐢 ゆっくり</button>
+        <button class="btn primary" onclick="addCard()">✅ デッキに追加</button>
+      </div>
+    </div>
+    <p class="hint" style="margin-top:10px" id="addMsg">※ 単語ではなく「丸ごと使える文」で登録するのがコツ(チャンク学習)</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-bottom:10px">デッキ(<span id="deckSize">0</span>枚)</h3>
+    <div id="deckList"></div>
+  </div>
+</section>
+
+<!-- ===== 仕組み ===== -->
+<section id="tab-sci" class="hidden">
+  <div class="card science">
+    <h2 style="color:var(--text);margin-bottom:12px">このツールの科学的根拠</h2>
+    <p><b>1. 検索練習(テスト効果)</b> — 「読む・聞く」より「思い出す」方が記憶定着が約1.5倍以上強い(Roediger & Karpicke, 2006)。だから必ず<b>答えを見る前に自力で言う</b>構造になっています。</p><br>
+    <p><b>2. 間隔反復(SM-2アルゴリズム)</b> — エビングハウスの忘却曲線に基づき、忘れる直前に再出題。集中学習より長期記憶への定着が圧倒的に効率的(Cepeda et al., 2006)。</p><br>
+    <p><b>3. 産出ベース学習</b> — 理解できることと言えることは別の能力(Swain のアウトプット仮説)。日本語→英語の「瞬間英作文」で発話回路そのものを鍛えます。</p><br>
+    <p><b>4. シャドーイング</b> — 通訳訓練由来。音韻ループを直接鍛え、リスニングと発音を同時に向上させることが実証されています(門田, 2007 ほか)。</p><br>
+    <p><b>5. チャンク学習</b> — 流暢な話者は単語ではなく定型表現の塊で話す(Wray, 2002)。カードはすべて「そのまま使える文」単位です。</p><br>
+    <p><b>6. 即時フィードバック</b> — 音声認識があなたの発話を判定し、どの単語が言えなかったかを即座に表示。誤りの即時修正は習得速度を大きく上げます。</p><br>
+    <p><b>7. 望ましい困難(Bjork)</b> — 少し苦しい想起こそが記憶を強化します。「無理だった」も貴重なデータです。</p><br>
+    <p><b>8. 対話的学習(AI先生)</b> — 疑問が湧いた瞬間に教わり、教わった文がそのまま復習サイクルに入る。母語習得と同じ「文脈の中で覚える」流れを再現しています。</p>
+  </div>
+</section>
+
+</main>
+<footer>英会話エンジン v2.0 — データはこのブラウザ内に保存されます</footer>
+
+<script>
+/* ================= 初期デッキ(チャンク=丸ごと使える文) ================= */
+const SEED = [
+ ["はじめまして。お会いできて嬉しいです。","Nice to meet you. It's a pleasure to meet you.","あいさつ"],
+ ["最近どうしてた?","How have you been?","あいさつ"],
+ ["お先に失礼します。また明日!","I'm heading out. See you tomorrow!","あいさつ"],
+ ["趣味は映画を見ることです。","I like watching movies in my free time.","自己紹介"],
+ ["日本から来ました。","I'm from Japan.","自己紹介"],
+ ["英語を勉強し始めたばかりです。","I just started learning English.","自己紹介"],
+ ["もう一度言ってもらえますか?","Could you say that again, please?","聞き返し"],
+ ["もう少しゆっくり話してもらえますか?","Could you speak a little more slowly?","聞き返し"],
+ ["それはどういう意味ですか?","What does that mean?","聞き返し"],
+ ["えーっと、何て言えばいいかな…","Well, how should I put it...","会話術"],
+ ["それ、いいですね!","That sounds great!","会話術"],
+ ["なるほど、わかりました。","I see. That makes sense.","会話術"],
+ ["あなたはどう思いますか?","What do you think?","会話術"],
+ ["駅までの道を教えてもらえますか?","Could you tell me the way to the station?","旅行"],
+ ["ここから歩いてどのくらいかかりますか?","How long does it take to walk from here?","旅行"],
+ ["チェックインをお願いします。","I'd like to check in, please.","旅行"],
+ ["荷物を預かってもらえますか?","Could you keep my luggage?","旅行"],
+ ["写真を撮ってもらえますか?","Could you take a picture of us?","旅行"],
+ ["おすすめの観光地はありますか?","Do you have any recommendations for sightseeing?","旅行"],
+ ["2人ですが、席はありますか?","Do you have a table for two?","レストラン"],
+ ["おすすめは何ですか?","What do you recommend?","レストラン"],
+ ["これにアレルギーの食材は入っていますか?","Does this contain any allergens?","レストラン"],
+ ["お会計をお願いします。","Could I have the check, please?","レストラン"],
+ ["持ち帰りにできますか?","Can I get this to go?","レストラン"],
+ ["これはいくらですか?","How much is this?","買い物"],
+ ["試着してもいいですか?","Can I try this on?","買い物"],
+ ["もう少し安いものはありますか?","Do you have anything cheaper?","買い物"],
+ ["カードで払えますか?","Can I pay by card?","買い物"],
+ ["ちょっと見ているだけです。","I'm just looking, thanks.","買い物"],
+ ["今日はとても忙しかったです。","I had a really busy day today.","日常"],
+ ["週末は何か予定ありますか?","Do you have any plans for the weekend?","日常"],
+ ["それはあなた次第です。","It's up to you.","日常"],
+ ["楽しみにしています!","I'm looking forward to it!","日常"],
+ ["手伝ってもらえますか?","Could you give me a hand?","日常"],
+ ["私もそう思います。","I think so too.","意見"],
+ ["うーん、それはどうかな。","Hmm, I'm not so sure about that.","意見"],
+ ["賛成です。いい考えだと思います。","I agree. I think that's a good idea.","意見"],
+ ["個人的には、こっちの方が好きです。","Personally, I like this one better.","意見"],
+ ["気分が悪いです。病院はどこですか?","I'm not feeling well. Where is the hospital?","トラブル"],
+ ["財布をなくしました。","I lost my wallet.","トラブル"],
+ ["電車に乗り遅れました。次は何時ですか?","I missed my train. When is the next one?","トラブル"],
+ ["助けてもらえますか?","Could you help me, please?","トラブル"],
+];
+
+/* ================= 状態管理 ================= */
+const KEY="eikaiwa_engine_v1";
+let S = load();
+function load(){
+  try{ const d = JSON.parse(localStorage.getItem(KEY)); if(d && d.cards) return d; }catch(e){}
+  return {
+    cards: SEED.map((s,i)=>({id:i+1,ja:s[0],en:s[1],cat:s[2],ef:2.5,ivl:0,reps:0,due:today(),total:0})),
+    nextId: SEED.length+1,
+    log:[], streak:0, lastDay:null, totalReviews:0, recent:[], chat:[], geminiKey:''
+  };
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
+function today(){ const d=new Date(); return d.toISOString().slice(0,10); }
+function addDays(n){ const d=new Date(); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+
+/* ================= セッション(出題を混ぜる=インターリービング) ================= */
+const NEW_PER_DAY = 8;
+let queue=[], current=null, sessionTotal=0, sessionDone=0;
+
+function buildQueue(extra=false){
+  const t=today();
+  const due = S.cards.filter(c=>c.reps>0 && c.due<=t);
+  let news = S.cards.filter(c=>c.reps===0);
+  const introducedToday = S.log.filter(l=>l.day===t && l.first).length;
+  const slots = extra ? NEW_PER_DAY : Math.max(0, NEW_PER_DAY - introducedToday);
+  news = news.slice(0, slots);
+  queue=[...due,...news];
+  for(let i=queue.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[queue[i],queue[j]]=[queue[j],queue[i]];}
+  sessionTotal=queue.length; sessionDone=0;
+}
+
+function nextCard(){
+  if(queue.length===0){ showDone(); return; }
+  current=queue.shift();
+  document.getElementById('doneCard').classList.add('hidden');
+  document.getElementById('trainCard').classList.remove('hidden');
+  document.getElementById('phaseRecall').classList.remove('hidden');
+  document.getElementById('phaseAnswer').classList.add('hidden');
+  document.getElementById('recallResult').innerHTML='';
+  document.getElementById('diffResult').innerHTML='';
+  document.getElementById('shadowResult').innerHTML='';
+  lastTranscript=null;
+  document.getElementById('promptJa').textContent=current.ja;
+  document.getElementById('cardMeta').innerHTML=
+    '<span class="tag">'+current.cat+'</span><span class="tag">'+(current.reps===0?'🆕 新しいカード':'🔁 '+current.reps+'回目')+'</span>';
+  document.getElementById('sessionProgress').style.width=(sessionTotal?100*sessionDone/sessionTotal:0)+'%';
+  updateHeader();
+}
+
+function showDone(){
+  document.getElementById('trainCard').classList.add('hidden');
+  document.getElementById('doneCard').classList.remove('hidden');
+}
+function extraSession(){ buildQueue(true); if(queue.length===0){alert('未学習のカードがありません。「カード管理」から追加できます!');return;} nextCard(); }
+
+/* ================= 答え表示 + SM-2 ================= */
+function revealAnswer(){
+  document.getElementById('phaseRecall').classList.add('hidden');
+  document.getElementById('phaseAnswer').classList.remove('hidden');
+  document.getElementById('answerEn').textContent=current.en;
+  document.getElementById('answerJa').textContent=current.ja;
+  [0,1,2,3].forEach(g=>{
+    document.getElementById('iv'+g).textContent=ivlPreview(current,g);
+  });
+  if(lastTranscript!==null) showDiff(lastTranscript,'diffResult');
+  playTTS();
+}
+
+function sm2(card,g){
+  if(g===0){ card.reps=0; card.ivl=0; card.due=today(); }
+  else{
+    const q = g+2;
+    card.ef = Math.max(1.3, card.ef + (0.1 - (5-q)*(0.08+(5-q)*0.02)));
+    card.reps++;
+    if(card.reps===1) card.ivl = (g===1?1:g===2?2:4);
+    else if(card.reps===2) card.ivl = (g===1?3:g===2?6:8);
+    else card.ivl = Math.round(card.ivl * card.ef * (g===1?0.8:g===2?1:1.3));
+    card.due = addDays(card.ivl);
+  }
+}
+function ivlPreview(card,g){
+  const c=Object.assign({},card); sm2(c,g);
+  return g===0?'すぐ再挑戦':c.ivl+'日後';
+}
+
+function grade(g){
+  const first = current.total===0;
+  sm2(current,g);
+  current.total++;
+  S.totalReviews++;
+  S.recent.push(g>=2?1:0); if(S.recent.length>50)S.recent.shift();
+  S.log.push({day:today(),id:current.id,g:g,first:first});
+  if(g===0) queue.push(current); else sessionDone++;
+  updateStreak();
+  save();
+  nextCard();
+}
+function updateStreak(){
+  const t=today();
+  if(S.lastDay===t) return;
+  const y=addDays(-1);
+  S.streak = (S.lastDay===y) ? S.streak+1 : 1;
+  S.lastDay=t;
+}
+
+/* ================= 通知トースト ================= */
+function toast(msg){
+  let t=document.getElementById('toast');
+  if(!t){ t=document.createElement('div'); t.id='toast';
+    t.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);padding:10px 18px;border-radius:10px;color:#fff;font-size:14px;z-index:99;max-width:90%';
+    document.body.appendChild(t); }
+  t.textContent=msg; t.style.display='block';
+  clearTimeout(t._h); t._h=setTimeout(function(){t.style.display='none';},4500);
+}
+
+/* ================= 音声認識(自動採点) ================= */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let lastTranscript=null, rec=null;
+
+function recErrMsg(err){
+  const m={
+    'no-speech':'🎤 声が聞き取れませんでした。もう一度押して話してください。',
+    'audio-capture':'🎤 マイクが見つかりません。接続を確認してください。',
+    'not-allowed':'🎤 マイクの使用がブロックされています。アドレスバーの🔒/🎤アイコンから「許可」にしてください。',
+    'network':'🎤 音声認識サービスに接続できません(このブラウザでは音声認識が制限されている可能性。Chrome推奨)。',
+    'aborted':'🎤 中断されました。もう一度どうぞ。'
+  };
+  return m[err]||('🎤 音声認識エラー: '+err);
+}
+
+function listen(btnId, onResult){
+  if(!SR){ alert('このブラウザは音声認識に未対応です。Chrome / Edge をお使いください。(答えを見る→シャドーイングは音声なしでも練習できます)'); return; }
+  if(rec){ try{rec.stop();}catch(e){} }
+  rec=new SR(); rec.lang='en-US'; rec.interimResults=false; rec.maxAlternatives=1;
+  const btn=document.getElementById(btnId); btn.classList.add('listening'); btn.textContent='🎙️ 聞き取り中…';
+  rec.onresult=function(e){ onResult(e.results[0][0].transcript); };
+  rec.onend=function(){ btn.classList.remove('listening'); btn.textContent=btnId==='micBtn'?'🎤 音声で答える':'🎤 シャドーイング'; rec=null; };
+  rec.onerror=function(e){ btn.classList.remove('listening'); btn.textContent=btnId==='micBtn'?'🎤 音声で答える':'🎤 シャドーイング'; toast(recErrMsg(e.error)); };
+  rec.start();
+}
+
+function startListening(){
+  listen('micBtn', function(t){
+    lastTranscript=t;
+    document.getElementById('recallResult').innerHTML=
+      '<div class="transcript">🗣️ "'+t+'"</div><div class="btn-row"><button class="btn primary" onclick="revealAnswer()">答え合わせ →</button></div>';
+  });
+}
+function startShadowing(){
+  listen('shadowBtn', function(t){ showDiff(t,'shadowResult'); });
+}
+
+function norm(s){ return s.toLowerCase().replace(/[^a-z0-9'\s]/g,'').replace(/\s+/g,' ').trim(); }
+function showDiff(transcript, targetId){
+  const said = new Set(norm(transcript).split(' '));
+  const words = current.en.split(/\s+/);
+  let hit=0;
+  const html = words.map(function(w){
+    const ok = said.has(norm(w));
+    if(ok) hit++;
+    return '<span class="'+(ok?'ok':'miss')+'">'+w+'</span>';
+  }).join(' ');
+  const pct = Math.round(100*hit/words.length);
+  const emoji = pct>=90?'🌟':pct>=70?'👍':pct>=40?'💪':'🔄';
+  document.getElementById(targetId).innerHTML=
+    '<div class="score-big">'+emoji+' '+pct+'%</div>'+
+    '<div class="transcript">'+html+'</div>'+
+    '<p class="hint" style="margin-top:6px">緑=言えた語 / 橙=抜けた語。あなたの発話: "'+transcript+'"</p>';
+}
+
+/* ================= 音声合成(TTS) ================= */
+let VOICES=[];
+function refreshVoices(){ VOICES=speechSynthesis.getVoices(); }
+if('speechSynthesis' in window){ refreshVoices(); speechSynthesis.onvoiceschanged=refreshVoices; }
+
+function playTTS(rate){ speak(current.en, rate||1); }
+
+function speak(text, rate){
+  if(!('speechSynthesis' in window) || !text) return;
+  rate=rate||1;
+  if(rec){ try{rec.stop();}catch(e){} }
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.lang='en-US'; u.rate=rate;
+  const v=enVoice(); if(v) u.voice=v;
+  u.onerror=function(e){
+    if(e.error==='canceled'||e.error==='interrupted') return;
+    const u2=new SpeechSynthesisUtterance(text);
+    u2.lang='en-US'; u2.rate=rate;
+    u2.onerror=function(e2){ if(e2.error!=='canceled'&&e2.error!=='interrupted') toast('🔇 音声を再生できませんでした('+e2.error+')'); };
+    speechSynthesis.speak(u2); speechSynthesis.resume();
+  };
+  speechSynthesis.speak(u);
+  speechSynthesis.resume();
+}
+function enVoice(){
+  const vs=VOICES.length?VOICES:speechSynthesis.getVoices();
+  return vs.find(function(v){return v.lang==='en-US' && v.localService;})
+      || vs.find(function(v){return v.lang.indexOf('en')===0 && v.localService;})
+      || vs.find(function(v){return v.lang==='en-US';})
+      || vs.find(function(v){return v.lang.indexOf('en')===0;});
+}
+function jaVoice(){
+  const vs=VOICES.length?VOICES:speechSynthesis.getVoices();
+  return vs.find(function(v){return v.lang.indexOf('ja')===0 && v.localService;})
+      || vs.find(function(v){return v.lang.indexOf('ja')===0;});
+}
+
+/* ================= タブ・統計・デッキ ================= */
+function showTab(t){
+  ['train','ai','stats','deck','sci'].forEach(function(x){
+    document.getElementById('tab-'+x).classList.toggle('hidden',x!==t);
+    document.getElementById('nav'+x[0].toUpperCase()+x.slice(1)).classList.toggle('active',x===t);
+  });
+  if(t==='stats') renderStats();
+  if(t==='deck') renderDeck();
+  if(t==='ai') renderChat();
+}
+function updateHeader(){
+  document.getElementById('streak').textContent=S.streak;
+  document.getElementById('dueCount').textContent=queue.length+(current?1:0);
+}
+function renderStats(){
+  document.getElementById('stTotal').textContent=S.totalReviews;
+  document.getElementById('stStreak').textContent=S.streak;
+  document.getElementById('stMature').textContent=S.cards.filter(function(c){return c.ivl>=21;}).length;
+  const r=S.recent;
+  document.getElementById('stAcc').textContent=r.length?Math.round(100*r.reduce(function(a,b){return a+b;},0)/r.length)+'%':'-';
+  const counts=[];
+  for(let i=0;i<7;i++){ const d=addDays(i); counts.push(S.cards.filter(function(c){return c.reps>0&&c.due===d;}).length); }
+  const max=Math.max.apply(null,counts.concat([1]));
+  document.getElementById('forecastBars').innerHTML=counts.map(function(c,i){
+    return '<div class="bar" style="height:'+Math.max(4,90*c/max)+'px"><i>'+(i===0?'今日':'+'+i+'日')+'<br>'+c+'</i></div>';
+  }).join('');
+}
+function renderDeck(){
+  document.getElementById('deckSize').textContent=S.cards.length;
+  document.getElementById('deckList').innerHTML=S.cards.map(function(c){
+    return '<div class="deck-item"><div><div>'+c.ja+'</div><div class="en">'+c.en+' ・ '+(c.reps===0?'未学習':'次回 '+c.due)+'</div></div>'+
+     '<button onclick="delCard('+c.id+')">🗑️</button></div>';
+  }).join('');
+}
+
+/* ================= 自動翻訳(無料API・キー不要) ================= */
+async function translateText(text, sl, tl){
+  try{
+    const r=await fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl='+sl+'&tl='+tl+'&dt=t&q='+encodeURIComponent(text));
+    const d=await r.json();
+    const out=d[0].map(function(x){return x[0];}).join('').trim();
+    if(out) return out;
+  }catch(e){}
+  const r=await fetch('https://api.mymemory.translated.net/get?q='+encodeURIComponent(text)+'&langpair='+sl+'|'+tl);
+  const d=await r.json();
+  if(d.responseData && d.responseData.translatedText) return d.responseData.translatedText;
+  throw new Error('translation failed');
+}
+function translateJa(text){ return translateText(text,'ja','en'); }
+
+async function translateAndPreview(){
+  const ja=document.getElementById('newJa').value.trim();
+  if(!ja){alert('日本語を入力してください');return;}
+  const btn=document.getElementById('transBtn');
+  btn.disabled=true; btn.textContent='変換中…';
+  try{
+    const en=await translateJa(ja);
+    document.getElementById('newEn').value=en;
+    document.getElementById('previewBox').classList.remove('hidden');
+    speak(en);
+  }catch(e){
+    alert('英語への変換に失敗しました。インターネット接続を確認してください。');
+  }
+  btn.disabled=false; btn.textContent='英語に変換 →';
+}
+
+function addCard(){
+  const ja=document.getElementById('newJa').value.trim();
+  const en=document.getElementById('newEn').value.trim();
+  if(!ja||!en){alert('先に「英語に変換」を押してください');return;}
+  S.cards.push({id:S.nextId++,ja:ja,en:en,cat:'マイ表現',ef:2.5,ivl:0,reps:0,due:today(),total:0});
+  document.getElementById('newJa').value='';
+  document.getElementById('previewBox').classList.add('hidden');
+  document.getElementById('addMsg').textContent='✅ 追加しました!明日以降の練習に自動で出てきます。';
+  save(); renderDeck();
+}
+function delCard(id){
+  if(!confirm('このカードを削除しますか?'))return;
+  S.cards=S.cards.filter(function(c){return c.id!==id;}); save(); renderDeck();
+}
+
+/* ================= AI先生(完全対話型チューター) ================= */
+const SYS_PROMPT='あなたは日本人のための英会話の先生AIです。相手は英語がほとんど話せない大人です。日本語で質問されたら:\n1. 日本語で簡潔に(3文以内で)答える\n2. 使える英語フレーズは必ず «...» の記号で囲んで示す(1〜3個、短く実用的なもの)\n3. 発音のコツや使う場面をひとこと添える\n«»の中は英語のみ。マークダウン記号や箇条書きは使わない。常に温かく励ます口調で話す。';
+
+function renderChat(){
+  const box=document.getElementById('chatBox');
+  box.innerHTML='';
+  (S.chat||[]).forEach(function(m){ appendMsg(m.role,m.content,false); });
+  box.scrollTop=box.scrollHeight;
+  updateKeyStatus();
+}
+
+function appendMsg(role,text,scroll){
+  const box=document.getElementById('chatBox');
+  const div=document.createElement('div');
+  div.className='msg '+(role==='user'?'user':'ai');
+  if(role==='assistant'){
+    div.innerHTML=text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/«([^»]+)»/g,'<span class="en">$1</span>');
+    box.appendChild(div);
+    const phrases=[];
+    const re=/«([^»]+)»/g; let mm;
+    while((mm=re.exec(text))!==null){ const p=mm[1].trim(); if(p) phrases.push(p); }
+    if(phrases.length){
+      const chips=document.createElement('div'); chips.className='chips';
+      phrases.forEach(function(p){
+        const c=document.createElement('div'); c.className='chip';
+        const sp=document.createElement('span'); sp.textContent=p;
+        const b1=document.createElement('button'); b1.textContent='🔊'; b1.onclick=function(){speak(p,0.9);};
+        const b2=document.createElement('button'); b2.textContent='➕デッキ'; b2.onclick=function(){addPhraseFromAI(p,b2);};
+        c.appendChild(sp); c.appendChild(b1); c.appendChild(b2); chips.appendChild(c);
+      });
+      box.appendChild(chips);
+    }
+  }else{ div.textContent=text; box.appendChild(div); }
+  if(scroll!==false) box.scrollTop=box.scrollHeight;
+}
+
+function fetchWithTimeout(url,opts,ms){
+  opts=opts||{}; ms=ms||40000;
+  const ctl=new AbortController();
+  const id=setTimeout(function(){ctl.abort();},ms);
+  opts.signal=ctl.signal;
+  return fetch(url,opts).finally(function(){clearTimeout(id);});
+}
+
+function buildPrompt(){
+  let lines=(S.chat||[]).slice(-8).map(function(m){return (m.role==='user'?'生徒: ':'先生: ')+m.content;});
+  while(lines.join('\n').length>600 && lines.length>1) lines.shift();
+  return SYS_PROMPT+'\n\n--- これまでの会話 ---\n'+lines.join('\n')+'\n先生:';
+}
+
+/* Gemini(キー設定済みなら最優先)→ 無料エンドポイントの順に試す */
+async function callAI(){
+  if(S.geminiKey){
+    const models=['gemini-2.5-flash','gemini-2.0-flash','gemini-flash-latest'];
+    for(let i=0;i<models.length;i++){
+      try{
+        const r=await fetchWithTimeout('https://generativelanguage.googleapis.com/v1beta/models/'+models[i]+':generateContent?key='+encodeURIComponent(S.geminiKey),{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({
+            systemInstruction:{parts:[{text:SYS_PROMPT}]},
+            contents:S.chat.slice(-12).map(function(m){return {role:m.role==='user'?'user':'model',parts:[{text:m.content}]};})
+          })});
+        if(r.status===400||r.status===403) throw new Error('APIキーが正しくないようです');
+        if(r.ok){
+          const d=await r.json();
+          let t='';
+          if(d.candidates&&d.candidates[0]&&d.candidates[0].content&&d.candidates[0].content.parts){
+            t=d.candidates[0].content.parts.map(function(p){return p.text||'';}).join('').trim();
+          }
+          if(t) return t;
+        }
+      }catch(e){ if(String(e.message).indexOf('APIキー')>=0) throw e; }
+    }
+    throw new Error('Gemini応答なし');
+  }
+  try{
+    const r=await fetchWithTimeout('https://text.pollinations.ai/openai',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'openai',messages:[{role:'system',content:SYS_PROMPT}].concat(S.chat.slice(-12))})});
+    if(r.ok){ const d=await r.json(); const t=((d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)||'').trim(); if(t) return t; }
+  }catch(e){}
+  const r=await fetchWithTimeout('https://text.pollinations.ai/'+encodeURIComponent(buildPrompt()));
+  if(!r.ok) throw new Error('無料AIが混雑中');
+  const t=(await r.text()).trim();
+  if(!t) throw new Error('empty');
+  return t;
+}
+
+async function sendToAI(){
+  const inp=document.getElementById('aiInput');
+  const q=inp.value.trim(); if(!q) return;
+  inp.value='';
+  S.chat=S.chat||[];
+  S.chat.push({role:'user',content:q});
+  appendMsg('user',q);
+  const box=document.getElementById('chatBox');
+  const t=document.createElement('div'); t.className='msg ai typing'; t.textContent='先生が考え中…';
+  box.appendChild(t); box.scrollTop=box.scrollHeight;
+  try{
+    const text=(await callAI()).replace(/^先生[::]\s*/,'');
+    t.remove();
+    S.chat.push({role:'assistant',content:text});
+    if(S.chat.length>60) S.chat=S.chat.slice(-60);
+    save();
+    appendMsg('assistant',text);
+    speakBilingual(text);
+  }catch(e){
+    t.textContent = S.geminiKey
+      ? '⚠️ AIに接続できませんでした。'+(String(e.message).indexOf('APIキー')>=0?'APIキーが正しいか確認してください。':'時間を置いてもう一度試してください。')
+      : '⚠️ 無料AIが混雑しています。下の「⚙️ AIの頭脳を設定」(無料・約2分)を行うと、安定して使えるようになります。';
+    t.classList.remove('typing');
+    S.chat.pop(); save();
+  }
+}
+
+/* 日本語部分は日本語音声、«英語»部分は英語音声で読み上げ */
+function speakBilingual(text){
+  if(!('speechSynthesis' in window)) return;
+  if(rec){ try{rec.stop();}catch(e){} }
+  speechSynthesis.cancel();
+  const parts=text.replace(/[*#_]/g,'').split(/«([^»]+)»/);
+  parts.forEach(function(p,i){
+    p=p.trim(); if(!p) return;
+    const u=new SpeechSynthesisUtterance(p);
+    if(i%2===1){ u.lang='en-US'; const v=enVoice(); if(v)u.voice=v; u.rate=0.95; }
+    else{ u.lang='ja-JP'; const v=jaVoice(); if(v)u.voice=v; u.rate=1.05; }
+    speechSynthesis.speak(u);
+  });
+  speechSynthesis.resume();
+}
+
+/* 日本語で話しかける(音声入力→自動送信) */
+function aiListen(){
+  if(!SR){ alert('このブラウザは音声認識に未対応です。Chrome / Edge をお使いください。文字入力は使えます。'); return; }
+  if(rec){ try{rec.stop();}catch(e){} }
+  rec=new SR(); rec.lang='ja-JP'; rec.interimResults=false;
+  const btn=document.getElementById('aiMicBtn');
+  btn.classList.add('listening');
+  rec.onresult=function(e){
+    document.getElementById('aiInput').value=e.results[0][0].transcript;
+    sendToAI();
+  };
+  rec.onend=function(){ btn.classList.remove('listening'); rec=null; };
+  rec.onerror=function(e){ btn.classList.remove('listening'); toast(recErrMsg(e.error)); };
+  rec.start();
+}
+
+/* 教わったフレーズをワンタップで復習デッキへ */
+async function addPhraseFromAI(en,btn){
+  btn.textContent='…';
+  let ja=en;
+  try{ ja=await translateText(en,'en','ja'); }catch(e){}
+  S.cards.push({id:S.nextId++,ja:ja,en:en,cat:'AI先生',ef:2.5,ivl:0,reps:0,due:today(),total:0});
+  save();
+  btn.textContent='✅'; btn.disabled=true;
+  toast('✅ デッキに追加しました。明日以降の練習に出てきます。');
+}
+
+function saveKey(){
+  const k=document.getElementById('gemKey').value.trim();
+  if(!k){ alert('キーを貼り付けてから保存を押してください'); return; }
+  S.geminiKey=k; save();
+  document.getElementById('gemKey').value='';
+  updateKeyStatus(true);
+}
+function updateKeyStatus(justSaved){
+  const el=document.getElementById('keyStatus');
+  if(!el) return;
+  el.textContent = S.geminiKey
+    ? (justSaved===true?'✅ 保存しました!AI先生が高品質モードになりました。':'✅ 設定済み(高品質モードで動作中)')
+    : '未設定: 混雑しがちな無料AIで動作中。上の手順で安定化できます。';
+}
+
+/* ================= 起動 ================= */
+buildQueue();
+nextCard();
+updateKeyStatus();
+</script>
+</body>
+</html>
