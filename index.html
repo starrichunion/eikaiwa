@@ -72,6 +72,10 @@ input[type=text],textarea,select{width:100%;padding:12px;border-radius:10px;bord
 .chip button{background:none;border:none;cursor:pointer;font-size:13px;color:var(--text);padding:0}
 .ai-input-row{display:flex;gap:8px}
 .ai-input-row input{flex:1;margin-bottom:0}
+#rpScenes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+#rpScenes .btn{white-space:nowrap;padding:13px 4px;font-size:13px}
+nav{scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
 footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
 @media(max-width:600px){
   .prompt-ja{font-size:21px}
@@ -83,7 +87,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
   nav button{padding:9px 6px;font-size:12px;white-space:nowrap}
   main{padding:12px}
   .card{padding:16px;border-radius:12px}
-  .btn{padding:12px 14px;font-size:14px;flex:1}
+  .btn{padding:12px 10px;font-size:13px;flex:1;white-space:nowrap}
   .grade-row button{padding:10px 2px;font-size:12px}
   .chat{max-height:48vh}
   .msg{font-size:14px}
@@ -302,7 +306,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
 </section>
 
 </main>
-<footer>英会話エンジン v4.0 — データはこのブラウザ内に保存されます</footer>
+<footer>英会話エンジン v4.1 — データはこのブラウザ内に保存されます</footer>
 
 <script>
 /* ================= 初期デッキ(チャンク=丸ごと使える文) ================= */
