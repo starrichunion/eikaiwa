@@ -204,6 +204,10 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
         <button class="btn primary" onclick="saveKey()">保存</button>
       </div>
       <p class="hint" id="keyStatus" style="margin-top:6px"></p>
+      <div class="btn-row hidden" id="shareKeyRow">
+        <button class="btn" onclick="copySetupLink()">📲 設定済みリンクをコピー(スマホ・家族用)</button>
+      </div>
+      <p class="hint hidden" id="shareKeyHint" style="margin-top:6px">↑ このリンクをLINE等で送って開くだけで、その端末のAI設定が完了します(信頼できる相手にだけ送ってください)</p>
     </div>
   </div>
 </section>
@@ -267,7 +271,7 @@ footer{text-align:center;color:var(--sub);font-size:12px;padding:20px}
 </section>
 
 </main>
-<footer>英会話エンジン v3.1 — データはこのブラウザ内に保存されます</footer>
+<footer>英会話エンジン v3.2 — データはこのブラウザ内に保存されます</footer>
 
 <script>
 /* ================= 初期デッキ(チャンク=丸ごと使える文) ================= */
@@ -431,7 +435,11 @@ async function explainCard(){
     const ans=await callAIRaw([{role:'user',content:p}]);
     current.exp=ans; save();
     box.textContent=ans; box.classList.remove('hidden');
-  }catch(e){ toast('解説を取得できませんでした。「AI先生」タブのAI設定を確認してください。'); }
+  }catch(e){
+    toast(S.geminiKey
+      ? '解説を取得できませんでした。時間を置いてもう一度お試しください。'
+      : 'この端末はAI未設定のため解説が使えません。「AI先生」タブの「⚙️ AIの頭脳を設定」(無料・2分)を行ってください。');
+  }
   btn.disabled=false; btn.textContent='📖 文の解説';
 }
 
@@ -926,9 +934,26 @@ function updateKeyStatus(justSaved){
   el.textContent = S.geminiKey
     ? (justSaved===true?'✅ 保存しました!AI先生が高品質モードになりました。':'✅ 設定済み(高品質モードで動作中)')
     : '未設定: 混雑しがちな無料AIで動作中。上の手順で安定化できます。';
+  const row=document.getElementById('shareKeyRow'), hint=document.getElementById('shareKeyHint');
+  if(row){ row.classList.toggle('hidden',!S.geminiKey); hint.classList.toggle('hidden',!S.geminiKey); }
+}
+
+/* 設定済みリンク: 開くだけでその端末にAIキーを設定 */
+function copySetupLink(){
+  const url=location.origin+location.pathname+'#k='+encodeURIComponent(S.geminiKey);
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(
+      function(){ toast('✅ リンクをコピーしました。スマホや家族に送って、開くだけでAI設定完了です。'); },
+      function(){ prompt('このリンクをコピーしてください', url); });
+  }else{ prompt('このリンクをコピーしてください', url); }
 }
 
 /* ================= 起動 ================= */
+if(location.hash && location.hash.indexOf('#k=')===0){
+  S.geminiKey=decodeURIComponent(location.hash.slice(3)); save();
+  try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
+  setTimeout(function(){ toast('✅ AIキーを設定しました。AI先生と文の解説が使えます。'); },600);
+}
 buildQueue();
 nextCard();
 updateKeyStatus();
